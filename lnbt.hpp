@@ -325,6 +325,7 @@ inline T endianswap(T val)
 }
 
 /// A helper class for making binary io support both big endian and little endian
+/// Instead of using the functions in this class directly, use nbt::read and nbt::write
 template <endian endian>
 class io
 {
@@ -387,25 +388,27 @@ public:
 template <endian endian = endian::big>
 inline NBT read(istream &in)
 {
+    in.exceptions(istream::eofbit | istream::failbit | istream::badbit);
     return io<endian>::read(in);
 }
 /// Read NBT from a binary input stream
 template <endian endian = endian::big>
 inline NBT read(istream &&in)
 {
-    return io<endian>::read(in);
+    return read<endian>(in);
 }
 /// Write NBT to a binary output stream
 template <endian endian = endian::big>
 inline void write(ostream &out, const NBT &val)
 {
+    out.exceptions(ostream::eofbit | ostream::failbit | ostream::badbit);
     io<endian>::write(out, val);
 }
 /// Write NBT to a binary output stream
 template <endian endian = endian::big>
 inline void write(ostream &&out, const NBT &val)
 {
-    io<endian>::write(out, val);
+    write<endian>(out, val);
 }
 
 template <endian endian>
