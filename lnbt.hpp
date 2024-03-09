@@ -20,6 +20,7 @@
 #define _LNBT_HPP
 
 #include <bit>
+#include <charconv>
 #include <concepts>
 #include <cstdint>
 #include <istream>
@@ -28,6 +29,7 @@
 #include <string>
 #include <variant>
 #include <vector>
+
 namespace nbt
 {
 using namespace std;
@@ -301,7 +303,10 @@ template <typename T>
 constexpr bool is_vector = false;
 template <typename T>
 constexpr bool is_vector<vector<T>> = true;
+} // namespace nbt
 
+namespace nbt::bin
+{
 /// A helper function for changing the endian of a value to endian::native
 template <endian endian, typename T>
 inline T endianswap(T val)
@@ -323,7 +328,6 @@ inline T endianswap(T val)
             static_assert(false, "not a supported type");
     }
 }
-
 /// A helper class for making binary io support both big endian and little endian
 /// Instead of using the functions in this class directly, use nbt::read and nbt::write
 template <endian endian>
@@ -384,33 +388,6 @@ protected:
 public:
     static void write(ostream &out, const NBT &val);
 };
-/// Read NBT from a binary input stream
-template <endian endian = endian::big>
-inline NBT read(istream &in)
-{
-    in.exceptions(istream::eofbit | istream::failbit | istream::badbit);
-    return io<endian>::read(in);
-}
-/// Read NBT from a binary input stream
-template <endian endian = endian::big>
-inline NBT read(istream &&in)
-{
-    return read<endian>(in);
-}
-/// Write NBT to a binary output stream
-template <endian endian = endian::big>
-inline void write(ostream &out, const NBT &val)
-{
-    out.exceptions(ostream::eofbit | ostream::failbit | ostream::badbit);
-    io<endian>::write(out, val);
-}
-/// Write NBT to a binary output stream
-template <endian endian = endian::big>
-inline void write(ostream &&out, const NBT &val)
-{
-    write<endian>(out, val);
-}
-
 template <endian endian>
 template <typename T>
     requires same_as<T, monostate>
@@ -632,6 +609,370 @@ void io<endian>::write(ostream &out, const NBT &val)
     write(out, val.name);
     write(out, val.tag);
 }
-} // namespace nbt
+
+/// Read NBT from a binary input stream
+template <endian endian = endian::big>
+inline NBT read(istream &in)
+{
+    in.exceptions(istream::eofbit | istream::failbit | istream::badbit);
+    return io<endian>::read(in);
+}
+/// Read NBT from a binary input stream
+template <endian endian = endian::big>
+inline NBT read(istream &&in)
+{
+    return read<endian>(in);
+}
+/// Write NBT to a binary output stream
+template <endian endian = endian::big>
+inline void write(ostream &out, const NBT &val)
+{
+    out.exceptions(ostream::eofbit | ostream::failbit | ostream::badbit);
+    io<endian>::write(out, val);
+}
+/// Write NBT to a binary output stream
+template <endian endian = endian::big>
+inline void write(ostream &&out, const NBT &val)
+{
+    write<endian>(out, val);
+}
+} // namespace nbt::bin
+
+namespace nbt::str
+{
+
+/// The functions in this namespace have some checks removed to improve performance, so never use these functions and use the functions in the nbt::str namespace instead.
+namespace detail
+{
+inline void skipWhitespace(istream &in)
+{
+    while (isspace(in.peek()))
+        in.ignore();
+}
+inline void expect(istream &in, char c)
+{
+    if (in.get() != c)
+        throw runtime_error("unexpected character");
+}
+inline void check(istream &in, char c)
+{
+    if (in.peek() != c)
+        throw runtime_error("unexpected character");
+}
+inline bool isAllowedInUnquotedString(char c)
+{
+    return c >= '0' && c <= '9' || c >= 'A' && c <= 'Z' || c >= 'a' && c <= 'z' || c == '_' || c == '-' || c == '.' || c == '+';
+}
+template <typename T>
+    requires integral<T> || floating_point<T>
+T readNum(const string_view s)
+{
+    T val;
+    auto [ptr, ec]{from_chars(s.data(), s.data() + s.size(), val)};
+    if (ec != errc() || ptr != s.data() + s.size())
+        throw runtime_error("from_chars() error");
+    return val;
+}
+template <typename T, char suffix>
+    requires integral<T> || floating_point<T>
+inline T readNumWithSuffix(const string_view s)
+{
+    if (tolower(s.back()) != suffix)
+        throw runtime_error("unexpected type");
+    return readNum<T>(string_view(s.data(), s.size() - 1));
+}
+template <typename T>
+    requires integral<T> || floating_point<T>
+T read(const string_view s)
+{
+    if constexpr (same_as<T, int8_t>)
+    {
+        if (s == "true")
+            return 1;
+        else if (s == "false")
+            return 0;
+        return readNumWithSuffix<T, 'b'>(s);
+    }
+    else if constexpr (same_as<T, short>)
+        return readNumWithSuffix<T, 's'>(s);
+    else if constexpr (same_as<T, int>)
+        return readNum<T>(s);
+    else if constexpr (same_as<T, long long>)
+        return readNumWithSuffix<T, 'l'>(s);
+    else if constexpr (same_as<T, float>)
+        return readNumWithSuffix<T, 'f'>(s);
+    else if constexpr (same_as<T, double>)
+    {
+        if (tolower(s.back()) == 'd')
+            return readNum<T>(string_view(s.data(), s.size() - 1));
+        else
+            return readNum<T>(s);
+    }
+    else
+        static_assert(false, "unsupported type");
+}
+inline string readQuotedString(istream &in, char mark)
+{
+    in.ignore(); // expect mark to be ignored
+    string s;
+    bool escaped = false;
+    for (;;)
+    {
+        char c = in.get();
+        if (escaped)
+        {
+            if (c == mark || c == '\\')
+                s.push_back(c), escaped = false;
+            else
+                throw runtime_error("Only '\\' or the quotation mark can be escaped");
+        }
+        else if (c == '\\')
+            escaped = true;
+        else if (c == mark)
+            return s;
+        else
+            s.push_back(c);
+    }
+}
+inline string readUnquotedString(istream &in)
+{
+    string s;
+    for (char c = in.peek(); isAllowedInUnquotedString(c); c = in.peek())
+        s.push_back(c), in.ignore();
+    return s;
+}
+template <typename T>
+    requires same_as<T, string>
+T read(istream &in)
+{
+    if (char c = in.peek(); c == '\"' || c == '\'')
+        return readQuotedString(in, c);
+    else
+        return readUnquotedString(in);
+}
+
+template <typename T>
+    requires same_as<T, Tag>
+T read(istream &in);
+
+template <typename T>
+    requires same_as<T, Compound>
+T read(istream &in)
+{
+    in.ignore(); // expect '{' to be ignored
+    skipWhitespace(in);
+    Compound compound;
+    if (in.peek() != '}')
+        for (;;)
+        {
+            string name = read<string>(in);
+            skipWhitespace(in);
+            expect(in, ':');
+            skipWhitespace(in);
+            Tag tag = read<Tag>(in);
+            compound.insert(make_pair(name, tag));
+            skipWhitespace(in);
+            if (in.peek() == '}')
+                break;
+            expect(in, ',');
+            skipWhitespace(in);
+        }
+    in.ignore();
+    return compound;
+}
+template <typename T>
+    requires same_as<T, int8_t> || same_as<T, int> || same_as<T, long long>
+vector<T> readArray(istream &in)
+{
+    skipWhitespace(in);
+    vector<T> vec;
+    if (in.peek() != ']')
+        for (;;)
+        {
+            vec.push_back(read<T>(readUnquotedString(in)));
+            skipWhitespace(in);
+            if (in.peek() == ']')
+                break;
+            expect(in, ',');
+            skipWhitespace(in);
+        }
+    in.ignore();
+    return vec;
+}
+template <typename T>
+vector<T> readList(istream &in, vector<T> vec)
+{
+    for (;;)
+    {
+        skipWhitespace(in);
+        if (in.peek() == ']')
+        {
+            in.ignore();
+            return vec;
+        }
+        expect(in, ',');
+        skipWhitespace(in);
+        Tag tag = read<Tag>(in);
+        vec.push_back(tag.get<T>());
+    }
+}
+inline Tag readListOrArray(istream &in)
+{
+    in.ignore(); // expect '[' to be ignored
+    // read array
+    if (char c = in.peek(); c == 'B' || c == 'I' || c == 'L')
+    {
+        in.ignore();
+        expect(in, ';');
+        switch (c)
+        { // clang-format off
+        case 'B': return readArray<int8_t>(in);
+        case 'I': return readArray<int>(in);
+        case 'L': return readArray<long long>(in);
+        } // clang-format on
+    }
+    // read list
+    skipWhitespace(in);
+    if (in.peek() == ']')
+    {
+        in.ignore();
+        return vector<monostate>();
+    }
+    Tag tag = read<Tag>(in);
+    switch (tag.getType())
+    { // clang-format off
+    case TagType::Byte: return List(readList(in, vector{tag.get<int8_t>()}));
+    case TagType::Short: return List(readList(in, vector{tag.get<short>()}));
+    case TagType::Int: return List(readList(in, vector{tag.get<int>()}));
+    case TagType::Long: return List(readList(in, vector{tag.get<long long>()}));
+    case TagType::Float: return List(readList(in, vector{tag.get<float>()}));
+    case TagType::Double: return List(readList(in, vector{tag.get<double>()}));
+    case TagType::ByteArray: return List(readList(in, vector{tag.get<vector<int8_t>>()}));
+    case TagType::String: return List(readList(in, vector{tag.get<string>()}));
+    case TagType::List: return List(readList(in, vector{tag.get<List>()}));
+    case TagType::Compound: return List(readList(in, vector{tag.get<Compound>()}));
+    case TagType::IntArray: return List(readList(in, vector{tag.get<vector<int>>()}));
+    case TagType::LongArray: return List(readList(in, vector{tag.get<vector<long long>>()}));
+    default: throw runtime_error("unsupported tag ID");
+    } // clang-format on
+}
+template <typename T>
+    requires same_as<T, Tag>
+T read(istream &in)
+{
+    char c = in.peek();
+    switch (c)
+    {
+    case '\"':
+    case '\'':
+        return readQuotedString(in, c);
+    case '{':
+        return read<Compound>(in);
+    case '[':
+        return readListOrArray(in);
+    default:
+    {
+        string s;
+        bool hasPoint = false;
+        for (char c = in.peek(); isAllowedInUnquotedString(c); c = in.peek())
+        {
+            if (c == '.')
+                hasPoint = true;
+            s.push_back(c);
+            in.ignore();
+        }
+        switch (tolower(s.back()))
+        { // clang-format off
+        case 'b': return readNum<int8_t>(string_view(s.data(), s.size() - 1));
+        case 's': return readNum<short>(string_view(s.data(), s.size() - 1));
+        case 'l': return readNum<long long>(string_view(s.data(), s.size() - 1));
+        case 'f': return readNum<float>(string_view(s.data(), s.size() - 1));
+        case 'd': return readNum<double>(string_view(s.data(), s.size() - 1));
+        // clang-format on
+        default:
+            if (s == "true")
+                return static_cast<int8_t>(1);
+            else if (s == "false")
+                return static_cast<int8_t>(0);
+            else if (hasPoint)
+                return readNum<double>(s);
+            else
+                return readNum<int>(s);
+        }
+    }
+    }
+}
+} // namespace detail
+
+template <typename T>
+    requires integral<T> || floating_point<T>
+inline T read(istream &in)
+{
+    in.exceptions(istream::eofbit | istream::failbit | istream::badbit);
+    detail::skipWhitespace(in);
+    return detail::read<T>(detail::readUnquotedString(in));
+}
+template <typename T>
+    requires same_as<T, string>
+inline T read(istream &in)
+{
+    in.exceptions(istream::eofbit | istream::failbit | istream::badbit);
+    detail::skipWhitespace(in);
+    char c = in.peek();
+    if (c != '\'' && c != '\"')
+        throw runtime_error("unexpected character");
+    return detail::readQuotedString(in, c);
+}
+template <typename T>
+    requires same_as<T, Compound>
+inline T read(istream &in)
+{
+    in.exceptions(istream::eofbit | istream::failbit | istream::badbit);
+    detail::skipWhitespace(in);
+    detail::check(in, '{');
+    return detail::read<T>(in);
+}
+template <typename T>
+    requires same_as<T, List>
+inline T read(istream &in)
+{
+    in.exceptions(istream::eofbit | istream::failbit | istream::badbit);
+    detail::skipWhitespace(in);
+    detail::check(in, '[');
+    return detail::readListOrArray(in).get<T>();
+}
+template <typename T>
+    requires is_vector<T> && is_tag<typename T::value_type>
+inline T read(istream &in)
+{
+    in.exceptions(istream::eofbit | istream::failbit | istream::badbit);
+    detail::skipWhitespace(in);
+    detail::check(in, '[');
+    return detail::readListOrArray(in).get<T>();
+}
+template <typename T>
+    requires same_as<T, Tag>
+inline T read(istream &in)
+{
+    in.exceptions(istream::eofbit | istream::failbit | istream::badbit);
+    detail::skipWhitespace(in);
+    return detail::read<T>(in);
+}
+template <typename T>
+inline T read(istream &&in)
+{
+    return read<T>(in);
+}
+/// Read SNBT from a input stream
+inline Tag read(istream &in)
+{
+    return read<Tag>(in);
+}
+/// Read SNBT from a input stream
+inline Tag read(istream &&in)
+{
+    return read(in);
+}
+} // namespace nbt::str
 
 #endif // _LNBT_HPP

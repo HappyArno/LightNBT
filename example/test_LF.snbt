@@ -1,0 +1,20 @@
+{
+    byte: 1b,
+    short: 2s,
+    int: 3,
+    long: 4L,
+    float: 5f,
+    double: 6d,
+    byteArray: [B; 1b, 2b, 3b, 4b, 5b],
+    string: "Hello, World!",
+    list: [
+        "LightNBT",
+        "Test Data"
+    ],
+    compound: {
+        a: 123,
+        b: "123"
+    },
+    intArray: [I; 2, 3, 5, 7, 11],
+    longArray: [L; 1L, 1L, 2L, 3L, 5L]
+}

@@ -1,18 +1,17 @@
 # LightNBT
 
-A free/libre, open-source and lightweight C++23 header-only library for reading, writing and accessing NBT (Named Binary Tag) data, supporting both big endian and little endian.
+A free/libre, open-source and lightweight C++23 header-only library, supporting reading and writing either big endian or little endian NBT (Named Binary Tag) data, reading SNBT (stringified Named Binary Tag) data, and accessing the data simply.
 
 ## Getting Started
 
 ```cpp
 #include "lnbt.hpp"
-#include <bit>
 #include <fstream>
 #include <iostream>
-using namespace std;
 int main()
 {
-    nbt::NBT data = nbt::read(ifstream("in.nbt", ios::binary));
+    using namespace std;
+    nbt::NBT data = nbt::str::read(ifstream("in.snbt"));
     try {
         data.tag.get<string>("string") = "test";
     } catch (const exception &e) {
@@ -20,7 +19,7 @@ int main()
     }
     int *a = data.tag.get_if<nbt::Compound>("compound")->get_if<int>("a");
     if (a != nullptr) cout << *a << endl;
-    nbt::write<endian::little>(ofstream("out.nbt", ios::binary), data);
+    nbt::bin::write<endian::little>(ofstream("out.nbt", ios::binary), data);
     return 0;
 }
 ```
@@ -30,6 +29,8 @@ int main()
 Just include [`lnbt.hpp`](./lnbt.hpp) in the root directory to get started. Notice that C++23 is required.
 
 ### Data Structure
+
+Each tag type maps to a C++ type.
 
 | Tag Type          | C++ Type                   |
 | ----------------- | -------------------------- |
@@ -58,21 +59,31 @@ class Tag : public variant<monostate, int8_t, and other tag types>;
 class NBT { string name; Tag tag; };
 ```
 
-### Reading & Writing
+### Reading & Writing NBT
 
-`read` functions and `write` functions are respectively provided to read from `istream`s and write to `ostream`s. You can specify endian by specifying the template parameter `endian` as `std::endian::big` or `std::endian::little`.
+`nbt::bin::read` functions and `nbt::bin::write` functions are respectively provided to read NBT from `istream`s and write NBT to `ostream`s. You can specify endian by specifying the template parameter `endian` as `std::endian::big` or `std::endian::little`.
 
 ```cpp
 using std::endian, std::istream, nbt::NBT;
 /// Read NBT from a binary input stream
-template<endian endian = endian::big> inline NBT nbt::read(istream &in);
-template<endian endian = endian::big> inline NBT nbt::read(istream &&in);
+template<endian endian = endian::big> inline NBT nbt::bin::read(istream &in);
+template<endian endian = endian::big> inline NBT nbt::bin::read(istream &&in);
 /// Write NBT to a binary output stream
-template<endian endian = endian::big> inline void nbt::write(ostream &out, const NBT &val);
-template<endian endian = endian::big> inline void nbt::write(ostream &&out, const NBT &val);
+template<endian endian = endian::big> inline void nbt::bin::write(ostream &out, const NBT &val);
+template<endian endian = endian::big> inline void nbt::bin::write(ostream &&out, const NBT &val);
 ```
 
 Please ensure that you open a file in binary mode, or the functions may not work as expected. Also notice that most of the NBT files are compressed, so a compression library is necessary.
+
+### Reading SNBT
+
+`nbt::str::read` functions are provided to read SNBT from `istream`s. The functions return `nbt::Tag` instead of `nbt::NBT` because SNBT usually has no name.
+
+```cpp
+/// Read SNBT from a input stream
+inline nbt::Tag nbt::str::read(std::istream &in)
+inline nbt::Tag nbt::str::read(std::istream &&in)
+```
 
 ### Access
 
@@ -117,14 +128,16 @@ inline nbt::TagType nbt::List::getType() const noexcept;
 The examples are in the [example](./example) directory.
 
 - [example1](./example/example1.cpp): Convert little endian NBT to big endian NBT
-- [example2](./example/example2.cpp): Print NBT as SNBT
-- [example3](./example/example3.cpp): Get the position of the player from level.dat
+- [example2](./example/example2.cpp): Convert SNBT to NBT
+- [example3](./example/example3.cpp): Print NBT as SNBT
+- [example4](./example/example4.cpp): Get the position of the player from level.dat
 
 ## Todo
 
 - Support `.mca` file
-- Support SNBT (Stringified Named Binary Tag)
+- Support writing SNBT
 - Support the 8-byte header of bedrock `level.dat`
+- Support automatic identifying the type of a file
 
 ## License
 
