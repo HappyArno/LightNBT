@@ -255,6 +255,9 @@ const T &Compound::get(string name) const
 {
     return get(name).get<T>();
 }
+// Comparing 'this' pointer with nullptr is necessary here
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wtautological-undefined-compare"
 inline Tag *Compound::get_if(string name)
 {
     if (this == nullptr)
@@ -273,6 +276,7 @@ inline const Tag *Compound::get_if(string name) const
         return nullptr;
     return &(iter->second);
 }
+#pragma clang diagnostic pop
 template <typename T>
 T *Compound::get_if(string name)
 {
@@ -908,7 +912,6 @@ template <typename T>
     requires integral<T> || floating_point<T>
 inline T read(istream &in)
 {
-    in.exceptions(istream::eofbit | istream::failbit | istream::badbit);
     detail::skipWhitespace(in);
     return detail::read<T>(detail::readUnquotedString(in));
 }
@@ -916,7 +919,6 @@ template <typename T>
     requires same_as<T, string>
 inline T read(istream &in)
 {
-    in.exceptions(istream::eofbit | istream::failbit | istream::badbit);
     detail::skipWhitespace(in);
     char c = in.peek();
     if (c != '\'' && c != '\"')
@@ -927,7 +929,6 @@ template <typename T>
     requires same_as<T, Compound>
 inline T read(istream &in)
 {
-    in.exceptions(istream::eofbit | istream::failbit | istream::badbit);
     detail::skipWhitespace(in);
     detail::check(in, '{');
     return detail::read<T>(in);
@@ -936,7 +937,6 @@ template <typename T>
     requires same_as<T, List>
 inline T read(istream &in)
 {
-    in.exceptions(istream::eofbit | istream::failbit | istream::badbit);
     detail::skipWhitespace(in);
     detail::check(in, '[');
     return detail::readListOrArray(in).get<T>();
@@ -945,7 +945,6 @@ template <typename T>
     requires is_vector<T> && is_tag<typename T::value_type>
 inline T read(istream &in)
 {
-    in.exceptions(istream::eofbit | istream::failbit | istream::badbit);
     detail::skipWhitespace(in);
     detail::check(in, '[');
     return detail::readListOrArray(in).get<T>();
@@ -954,7 +953,6 @@ template <typename T>
     requires same_as<T, Tag>
 inline T read(istream &in)
 {
-    in.exceptions(istream::eofbit | istream::failbit | istream::badbit);
     detail::skipWhitespace(in);
     return detail::read<T>(in);
 }
