@@ -644,7 +644,6 @@ inline void write(ostream &&out, const NBT &val)
 
 namespace nbt::str
 {
-
 /// The functions in this namespace have some checks removed to improve performance, so never use these functions and use the functions in the nbt::str namespace instead.
 namespace detail
 {
@@ -961,16 +960,301 @@ inline T read(istream &&in)
 {
     return read<T>(in);
 }
-/// Read SNBT from a input stream
+/// Read SNBT from an input stream
 inline Tag read(istream &in)
 {
     return read<Tag>(in);
 }
-/// Read SNBT from a input stream
+/// Read SNBT from an input stream
 inline Tag read(istream &&in)
 {
     return read(in);
 }
+
+/// Write SNBT and configure the format
+struct Writer
+{
+    /// Specify indent
+    string_view indent = "    ";
+    /// Whether throw an exception when meeting an end tag
+    bool end_tag_throw = false;
+    /// Specify what to write when meeting an end tag
+    string_view end_tag = "(End)";
+    /// Whether make line feeds
+    bool line_feed = true;
+    /// Whether write spaces
+    bool space = true;
+    /// Specify floating-point formatting for std::to_chars
+    chars_format fmt{};
+    /// Specify the default size of a buffer
+    size_t buffer_size = 100;
+    string_view byte_tag_suffix = "b";
+    string_view short_tag_suffix = "s";
+    string_view int_tag_suffix = "";
+    string_view long_tag_suffix = "L";
+    string_view float_tag_suffix = "f";
+    string_view double_tag_suffix = "d";
+
+    inline void writeSpace(ostream &out) const
+    {
+        if (space)
+            out.put(' ');
+    }
+    inline void writeString(ostream &out, const string_view s) const
+    {
+        out.write(s.data(), s.size());
+    }
+    inline void writeLineFeed(ostream &out, size_t depth) const
+    {
+        if (line_feed)
+        {
+            out.put('\n');
+            for (size_t i = 0; i < depth; i++)
+                writeString(out, indent);
+        }
+    }
+    inline void writeCommaWithSpace(ostream &out) const
+    {
+        out.put(',');
+        writeSpace(out);
+    }
+    inline void writeCommaWithLineFeed(ostream &out, size_t depth) const
+    {
+        out.put(',');
+        if (line_feed)
+            writeLineFeed(out, depth);
+        else
+            writeSpace(out);
+    }
+    inline void write(ostream &out, monostate val, size_t depth = 0) const
+    {
+        if (end_tag_throw)
+            throw runtime_error("Reach end tag");
+        else
+            writeString(out, end_tag);
+    }
+// Variable-length array (VLA) is required here
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wvla-cxx-extension"
+    template <integral T>
+    void write(ostream &out, T val, size_t depth = 0) const
+    {
+        char buf[buffer_size];
+        auto [ptr, ec]{to_chars(buf, buf + buffer_size, val)};
+        if (ec != errc())
+            throw runtime_error("to_chars() error");
+        writeString(out, string_view(buf, ptr));
+    }
+    template <floating_point T>
+    void write(ostream &out, T val, size_t depth = 0) const
+    {
+        char buf[buffer_size];
+        auto [ptr, ec]{to_chars(buf, buf + buffer_size, val, fmt)};
+        if (ec != errc())
+            throw runtime_error("to_chars() error");
+        writeString(out, string_view(buf, ptr));
+    }
+#pragma clang diagnostic pop
+    inline void write(ostream &out, int8_t val, size_t depth = 0) const
+    {
+        write<>(out, val, depth);
+        writeString(out, byte_tag_suffix);
+    }
+    inline void write(ostream &out, short val, size_t depth = 0) const
+    {
+        write<>(out, val, depth);
+        writeString(out, short_tag_suffix);
+    }
+    inline void write(ostream &out, int val, size_t depth = 0) const
+    {
+        write<>(out, val, depth);
+        writeString(out, int_tag_suffix);
+    }
+    inline void write(ostream &out, long long val, size_t depth = 0) const
+    {
+        write<>(out, val, depth);
+        writeString(out, long_tag_suffix);
+    }
+    inline void write(ostream &out, float val, size_t depth = 0) const
+    {
+        write<>(out, val, depth);
+        writeString(out, float_tag_suffix);
+    }
+    inline void write(ostream &out, double val, size_t depth = 0) const
+    {
+        write<>(out, val, depth);
+        writeString(out, double_tag_suffix);
+    }
+    inline void write(ostream &out, const string_view s, size_t depth = 0) const
+    {
+        char mark = '\'';
+        if (s.find('\"') == string_view::npos)
+            mark = '\"';
+        else if (s.find('\'') != string_view::npos)
+        {
+            out.put('\"');
+            for (char c : s)
+            {
+                if (c == '\"')
+                    out.put('\\');
+                out.put(c);
+            }
+            out.put('\"');
+            return;
+        }
+        out.put(mark);
+        writeString(out, s);
+        out.put(mark);
+    }
+    inline void write(ostream &out, const string &s, size_t depth = 0) const
+    {
+        write(out, string_view(s), depth);
+    }
+    inline void writeName(ostream &out, const string_view name) const
+    {
+        bool quoted = false;
+        for (char c : name)
+            if (!str::detail::isAllowedInUnquotedString(c))
+            {
+                write(out, name);
+                return;
+            }
+        writeString(out, name);
+    }
+    template <typename T>
+        requires same_as<T, int8_t> || same_as<T, int> || same_as<T, long long>
+    void writeArray(ostream &out, const vector<T> &vec, size_t depth = 0) const;
+    template <typename T>
+        requires same_as<T, vector<int8_t>> || same_as<T, vector<int>> || same_as<T, vector<long long>>
+    void write(ostream &out, T val, size_t depth = 0) const
+    {
+        writeArray(out, val, depth);
+    }
+    inline void write(ostream &out, const Compound &compound, size_t depth = 0) const;
+    template <typename T>
+    void writeList(ostream &out, const vector<T> &vec, size_t depth = 0) const;
+    inline void write(ostream &out, const List &list, size_t depth = 0) const;
+    /// Write SNBT to an output stream
+    inline void write(ostream &out, const Tag &tag, size_t depth = 0) const;
+    /// Write SNBT to an output stream
+    inline void write(ostream &&out, const Tag &tag, size_t depth = 0) const
+    {
+        write(out, tag, depth);
+    }
+};
+template <typename T>
+    requires same_as<T, int8_t> || same_as<T, int> || same_as<T, long long>
+void Writer::writeArray(ostream &out, const vector<T> &vec, size_t depth) const
+{
+    out.put('[');
+    if constexpr (same_as<T, int8_t>)
+        out.put('B');
+    else if constexpr (same_as<T, int>)
+        out.put('I');
+    else if constexpr (same_as<T, long long>)
+        out.put('L');
+    else
+        static_assert(false, "not a supported type");
+    out.put(';'), writeSpace(out);
+    if (auto i = vec.begin(); i != vec.end())
+        for (;;)
+        {
+            write(out, *i, depth + 1);
+            i++;
+            if (i == vec.end())
+                break;
+            writeCommaWithSpace(out);
+        }
+    out.put(']');
+}
+void Writer::write(ostream &out, const Compound &compound, size_t depth) const
+{
+    out.put('{');
+    if (auto i = compound.begin(); i != compound.end())
+    {
+        writeLineFeed(out, depth + 1);
+        for (;;)
+        {
+            writeName(out, i->first);
+            out.put(':'), writeSpace(out);
+            write(out, i->second, depth + 1);
+            i++;
+            if (i == compound.end())
+                break;
+            writeCommaWithLineFeed(out, depth + 1);
+        }
+        writeLineFeed(out, depth);
+    }
+    out.put('}');
+}
+template <typename T>
+void Writer::writeList(ostream &out, const vector<T> &vec, size_t depth) const
+{
+    constexpr bool needWrap = same_as<T, Compound> || same_as<T, List> || same_as<T, string> || is_vector<T>;
+    out.put('[');
+    if (auto i = vec.begin(); i != vec.end())
+    {
+        if constexpr (needWrap)
+            writeLineFeed(out, depth + 1);
+        for (;;)
+        {
+            write(out, *i, depth + 1);
+            i++;
+            if (i == vec.end())
+                break;
+            if constexpr (needWrap)
+                writeCommaWithLineFeed(out, depth + 1);
+            else
+                writeCommaWithSpace(out);
+        }
+        if constexpr (needWrap)
+            writeLineFeed(out, depth);
+    }
+    out.put(']');
+}
+inline void Writer::write(ostream &out, const List &list, size_t depth) const
+{
+    switch (list.getType())
+    { // clang-format off
+    case TagType::End: writeList(out, list.get<monostate>(), depth); break;
+    case TagType::Byte: writeList(out, list.get<int8_t>(), depth); break;
+    case TagType::Short: writeList(out, list.get<short>(), depth); break;
+    case TagType::Int: writeList(out, list.get<int>(), depth); break;
+    case TagType::Long: writeList(out, list.get<long long>(), depth); break;
+    case TagType::Float: writeList(out, list.get<float>(), depth); break;
+    case TagType::Double: writeList(out, list.get<double>(), depth); break;
+    case TagType::ByteArray: writeList(out, list.get<vector<int8_t>>(), depth); break;
+    case TagType::String: writeList(out, list.get<string>(), depth); break;
+    case TagType::List: writeList(out, list.get<List>(), depth); break;
+    case TagType::Compound: writeList(out, list.get<Compound>(), depth); break;
+    case TagType::IntArray: writeList(out, list.get<vector<int>>(), depth); break;
+    case TagType::LongArray: writeList(out, list.get<vector<long long>>(), depth); break;
+    default: throw runtime_error("unsupported tag ID");
+    } // clang-format on
+}
+inline void Writer::write(ostream &out, const Tag &tag, size_t depth) const
+{
+    switch (tag.getType())
+    { // clang-format off
+    case TagType::End: write(out, tag.get<monostate>(), depth); break;
+    case TagType::Byte: write(out, tag.get<int8_t>(), depth); break;
+    case TagType::Short: write(out, tag.get<short>(), depth); break;
+    case TagType::Int: write(out, tag.get<int>(), depth); break;
+    case TagType::Long: write(out, tag.get<long long>(), depth); break;
+    case TagType::Float: write(out, tag.get<float>(), depth); break;
+    case TagType::Double: write(out, tag.get<double>(), depth); break;
+    case TagType::ByteArray: write(out, tag.get<vector<int8_t>>(), depth); break;
+    case TagType::String: write(out, tag.get<string>(), depth); break;
+    case TagType::List: write(out, tag.get<List>(), depth); break;
+    case TagType::Compound: write(out, tag.get<Compound>(), depth); break;
+    case TagType::IntArray: write(out, tag.get<vector<int>>(), depth); break;
+    case TagType::LongArray: write(out, tag.get<vector<long long>>(), depth); break;
+    default: throw runtime_error("unsupported tag ID");
+    } // clang-format on
+}
+const Writer stdWriter;
+const Writer noLineFeedWriter{.line_feed = false};
+const Writer compactWriter{.line_feed = false, .space = false};
 } // namespace nbt::str
 
 #endif // _LNBT_HPP

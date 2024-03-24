@@ -1,6 +1,6 @@
 # LightNBT
 
-A free/libre, open-source and lightweight C++23 header-only library, supporting reading and writing either big endian or little endian NBT (Named Binary Tag) data, reading SNBT (stringified Named Binary Tag) data, and accessing the data simply.
+A free/libre, open-source and lightweight C++23 header-only library, supporting reading and writing either big endian or little endian NBT (Named Binary Tag) data, reading and writing SNBT (stringified Named Binary Tag) data, and accessing the data simply.
 
 ## Getting Started
 
@@ -75,14 +75,21 @@ template<endian endian = endian::big> inline void nbt::bin::write(ostream &&out,
 
 Please ensure that you open a file in binary mode, or the functions may not work as expected. Also notice that most of the NBT files are compressed, so a compression library is necessary.
 
-### Reading SNBT
+### Reading & Writing SNBT
 
-`nbt::str::read` functions are provided to read SNBT from `istream`s. The functions return `nbt::Tag` instead of `nbt::NBT` because SNBT usually has no name.
+`nbt::str::read` functions are provided to read SNBT from `istream`s. The functions return `nbt::Tag` instead of `nbt::NBT` because SNBT usually has no name. `nbt::str::Writer` class is provided to write SNBT to `ostream`s by using its non-static member function `nbt::str::Writer::write`, and configure the format by specifying its objects' non-static data members. `stdWriter`, `noLineFeedWriter` and `compactWriter` are provided as objects of class `Writer` for convenience, so that you can use them like `stdWriter.write()` to write SNBT directly.
 
 ```cpp
-/// Read SNBT from a input stream
+/// Read SNBT from an input stream
 inline nbt::Tag nbt::str::read(std::istream &in)
 inline nbt::Tag nbt::str::read(std::istream &&in)
+/// Write SNBT to an output stream
+inline void nbt::str::Writer::write(std::ostream &out, const nbt::Tag &tag, size_t depth = 0ULL) const
+inline void nbt::str::Writer::write(std::ostream &&out, const nbt::Tag &tag, size_t depth = 0ULL) const
+/// Build-in Writers
+const nbt::str::Writer stdWriter;
+const nbt::str::Writer noLineFeedWriter{.line_feed = false};
+const nbt::str::Writer compactWriter{.line_feed = false, .space = false};
 ```
 
 ### Access
@@ -128,14 +135,13 @@ inline nbt::TagType nbt::List::getType() const noexcept;
 The examples are in the [example](./example) directory.
 
 - [example1](./example/example1.cpp): Convert little endian NBT to big endian NBT
-- [example2](./example/example2.cpp): Convert SNBT to NBT
+- [example2](./example/example2.cpp): Convert SNBT to NBT and convert NBT to SNBT
 - [example3](./example/example3.cpp): Print NBT as SNBT
 - [example4](./example/example4.cpp): Get the position of the player from level.dat
 
 ## Todo
 
 - Support `.mca` file
-- Support writing SNBT
 - Support the 8-byte header of bedrock `level.dat`
 - Support automatic identifying the type of a file
 
