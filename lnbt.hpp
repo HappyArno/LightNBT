@@ -33,6 +33,7 @@
 namespace nbt
 {
 using namespace std;
+
 /// The type ID of a tag
 enum class TagType
 {
@@ -133,6 +134,23 @@ public:
         return &((*vec)[i]);
     }
 };
+
+/// Specify that a type is a valid tag type
+template <typename T>
+concept is_tag = same_as<T, monostate> || same_as<T, int8_t> || same_as<T, short> || same_as<T, int> || same_as<T, long long> || same_as<T, float> || same_as<T, double> || same_as<T, vector<int8_t>> || same_as<T, string> || same_as<T, List> || same_as<T, Compound> || same_as<T, vector<int>> || same_as<T, vector<long long>>;
+/// Check if a type is a instance of vector
+template <typename T>
+constexpr bool is_vector = false;
+template <typename T>
+constexpr bool is_vector<vector<T>> = true;
+/// Specify that a type is a valid array type
+template <typename T>
+concept is_array = same_as<T, vector<int8_t>> || same_as<T, vector<int>> || same_as<T, vector<long long>>;
+/// Specify that a type is a valid list type
+/// Note: it is different from `same_as<T, nbt::List>`
+template <typename T>
+concept is_list = is_vector<T> && is_tag<typename T::value_type>;
+
 /// A unnamed tag
 class Tag : public variant<monostate, int8_t, short, int, long long, float, double, vector<int8_t>, string, List, Compound, vector<int>, vector<long long>>
 {
@@ -171,14 +189,12 @@ public:
     {
         return get(name).get<T>();
     }
-    template <typename T>
-        requires same_as<T, vector<int8_t>> || same_as<T, vector<int>> || same_as<T, vector<long long>>
+    template <is_array T>
     T::value_type &get(size_t i)
     {
         return get<T>().at(i);
     }
-    template <typename T>
-        requires same_as<T, vector<int8_t>> || same_as<T, vector<int>> || same_as<T, vector<long long>>
+    template <is_array T>
     const T::value_type &get(size_t i) const
     {
         return get<T>().at(i);
@@ -226,8 +242,7 @@ public:
     {
         return get_if(name)->get_if<T>();
     }
-    template <typename T>
-        requires same_as<T, vector<int8_t>> || same_as<T, vector<int>> || same_as<T, vector<long long>>
+    template <is_array T>
     T::value_type *get_if(size_t i)
     {
         T *vec = get_if<T>();
@@ -235,8 +250,7 @@ public:
             return nullptr;
         return &((*vec)[i]);
     }
-    template <typename T>
-        requires same_as<T, vector<int8_t>> || same_as<T, vector<int>> || same_as<T, vector<long long>>
+    template <is_array T>
     const T::value_type *get_if(size_t i) const
     {
         T *vec = get_if<T>();
@@ -298,15 +312,6 @@ public:
     NBT(Tag tag) : name(""), tag(tag) {}
     NBT(pair<string, Tag> p) : name(p.first), tag(p.second) {}
 };
-
-/// Specify that a type is a valid tag type
-template <typename T>
-concept is_tag = same_as<T, monostate> || same_as<T, int8_t> || same_as<T, short> || same_as<T, int> || same_as<T, long long> || same_as<T, float> || same_as<T, double> || same_as<T, vector<int8_t>> || same_as<T, string> || same_as<T, List> || same_as<T, Compound> || same_as<T, vector<int>> || same_as<T, vector<long long>>;
-/// Check if a type is a instance of vector
-template <typename T>
-constexpr bool is_vector = false;
-template <typename T>
-constexpr bool is_vector<vector<T>> = true;
 } // namespace nbt
 
 namespace nbt::bin
@@ -350,8 +355,7 @@ protected:
     template <typename T>
         requires same_as<T, string>
     static T read(istream &in);
-    template <typename T>
-        requires is_vector<T> && is_tag<typename T::value_type>
+    template <is_list T>
     static T read(istream &in);
     template <typename T>
         requires same_as<T, List>
@@ -377,8 +381,7 @@ protected:
     template <typename T>
         requires same_as<T, string>
     static void write(ostream &out, const T &val);
-    template <typename T>
-        requires is_vector<T> && is_tag<typename T::value_type>
+    template <is_list T>
     static void write(ostream &out, const T &val);
     template <typename T>
         requires same_as<T, List>
@@ -426,8 +429,7 @@ T io<endian>::read(istream &in)
     return str;
 }
 template <endian endian>
-template <typename T>
-    requires is_vector<T> && is_tag<typename T::value_type>
+template <is_list T>
 T io<endian>::read(istream &in)
 {
     T vec(read<int>(in));
@@ -537,8 +539,7 @@ void io<endian>::write(ostream &out, const T &val)
     out.write(val.c_str(), val.size());
 }
 template <endian endian>
-template <typename T>
-    requires is_vector<T> && is_tag<typename T::value_type>
+template <is_list T>
 void io<endian>::write(ostream &out, const T &val)
 {
     write<int>(out, val.size());
@@ -940,8 +941,7 @@ inline T read(istream &in)
     detail::check(in, '[');
     return detail::readListOrArray(in).get<T>();
 }
-template <typename T>
-    requires is_vector<T> && is_tag<typename T::value_type>
+template <is_list T>
 inline T read(istream &in)
 {
     detail::skipWhitespace(in);
@@ -1124,8 +1124,7 @@ struct Writer
     template <typename T>
         requires same_as<T, int8_t> || same_as<T, int> || same_as<T, long long>
     void writeArray(ostream &out, const vector<T> &vec, size_t depth = 0) const;
-    template <typename T>
-        requires same_as<T, vector<int8_t>> || same_as<T, vector<int>> || same_as<T, vector<long long>>
+    template <is_array T>
     void write(ostream &out, T val, size_t depth = 0) const
     {
         writeArray(out, val, depth);
