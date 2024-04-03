@@ -53,10 +53,10 @@ Each tag type maps to a C++ type.
 Where `nbt::Compound`, `nbt::List`, `nbt::Tag` and `nbt::NBT` are classes:
 
 ```cpp
-class Compound : public map<string, Tag>;
-class List : public variant<vector<monostate>, vector<int8_t>, and other vectors>;
-class Tag : public variant<monostate, int8_t, and other tag types>;
-class NBT { string name; Tag tag; };
+struct Compound : public map<string, Tag>;
+struct List : public variant<vector<monostate>, vector<int8_t>, and other vectors>;
+struct Tag : public variant<monostate, int8_t, and other tag types>;
+struct NBT { string name; Tag tag; };
 ```
 
 ### Reading & Writing NBT

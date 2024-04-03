@@ -51,12 +51,11 @@ enum class TagType
     IntArray = 11,
     LongArray = 12
 };
-class Tag;
-class NBT;
+struct Tag;
+struct NBT;
 /// A list of name-tag pairs
-class Compound : public map<string, Tag>
+struct Compound : public map<string, Tag>
 {
-public:
     using map::map;
     Tag &get(string name)
     {
@@ -78,9 +77,8 @@ public:
     const T *get_if(string name) const;
 };
 /// An ordered list of unnamed tags, all of the same type
-class List : public variant<vector<monostate>, vector<int8_t>, vector<short>, vector<int>, vector<long long>, vector<float>, vector<double>, vector<vector<int8_t>>, vector<string>, vector<List>, vector<Compound>, vector<vector<int>>, vector<vector<long long>>>
+struct List : public variant<vector<monostate>, vector<int8_t>, vector<short>, vector<int>, vector<long long>, vector<float>, vector<double>, vector<vector<int8_t>>, vector<string>, vector<List>, vector<Compound>, vector<vector<int>>, vector<vector<long long>>>
 {
-public:
     using variant::variant;
     /// Get the type of the tags in the List
     inline TagType getType() const noexcept
@@ -152,9 +150,8 @@ template <typename T>
 concept is_list = is_vector<T> && is_tag<typename T::value_type>;
 
 /// A unnamed tag
-class Tag : public variant<monostate, int8_t, short, int, long long, float, double, vector<int8_t>, string, List, Compound, vector<int>, vector<long long>>
+struct Tag : public variant<monostate, int8_t, short, int, long long, float, double, vector<int8_t>, string, List, Compound, vector<int>, vector<long long>>
 {
-public:
     using variant::variant;
     /// Get the type of the tag
     inline TagType getType() const noexcept
@@ -302,9 +299,8 @@ const T *Compound::get_if(string name) const
     return get_if(name)->get_if<T>();
 }
 /// A named tag (NBT)
-class NBT
+struct NBT
 {
-public:
     string name;
     Tag tag;
     NBT() = default;
