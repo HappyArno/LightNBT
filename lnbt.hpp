@@ -721,10 +721,22 @@ inline string readQuotedString(istream &in, char mark)
         char c = in.get();
         if (escaped)
         {
-            if (c == mark || c == '\\')
-                s.push_back(c), escaped = false;
-            else
-                throw runtime_error("Only '\\' or the quotation mark can be escaped");
+            switch (c)
+            { // clang-format off
+            case '\'': s.push_back('\''); break;
+            case '\"': s.push_back('\"'); break;
+            case '?': s.push_back('?'); break;
+            case '\\': s.push_back('\\'); break;
+            case 'a': s.push_back('\a'); break;
+            case 'b': s.push_back('\b'); break;
+            case 'f': s.push_back('\f'); break;
+            case 'n': s.push_back('\n'); break;
+            case 'r': s.push_back('\r'); break;
+            case 't': s.push_back('\t'); break;
+            case 'v': s.push_back('\v'); break;
+            default: throw runtime_error("the character cannot be escaped");
+            } // clang-format on
+            escaped = false;
         }
         else if (c == '\\')
             escaped = true;
@@ -976,6 +988,8 @@ struct Writer
     bool end_tag_throw = false;
     /// Specify what to write when meeting an end tag
     string_view end_tag = "(End)";
+    /// Whether use escape sequences when writing string tags
+    bool escape = true;
     /// Whether make line feeds
     bool line_feed = true;
     /// Whether write spaces
@@ -1083,23 +1097,35 @@ struct Writer
     }
     inline void write(ostream &out, const string_view s, size_t depth = 0) const
     {
-        char mark = '\'';
-        if (s.find('\"') == string_view::npos)
-            mark = '\"';
-        else if (s.find('\'') != string_view::npos)
+        char mark = s.find('\"') != string_view::npos && s.find('\'') == string_view::npos ? '\'' : '\"';
+        out.put(mark);
+        if (escape)
         {
-            out.put('\"');
+            for (char c : s)
+                switch (c)
+                { // clang-format off
+                case '\'': if (mark == '\'') out.put('\\'); out.put('\''); break;
+                case '\"': if (mark == '\"') out.put('\\'); out.put('\"'); break;
+                case '\\': writeString(out, R"(\\)"); break;
+                case '\a': writeString(out, R"(\a)"); break;
+                case '\b': writeString(out, R"(\b)"); break;
+                case '\f': writeString(out, R"(\f)"); break;
+                case '\n': writeString(out, R"(\n)"); break;
+                case '\r': writeString(out, R"(\r)"); break;
+                case '\t': writeString(out, R"(\t)"); break;
+                case '\v': writeString(out, R"(\v)"); break;
+                default: out.put(c);
+                } // clang-format on
+        }
+        else
+        {
             for (char c : s)
             {
-                if (c == '\"')
+                if (c == '\"' || c == '\\')
                     out.put('\\');
                 out.put(c);
             }
-            out.put('\"');
-            return;
         }
-        out.put(mark);
-        writeString(out, s);
         out.put(mark);
     }
     inline void write(ostream &out, const string &s, size_t depth = 0) const
