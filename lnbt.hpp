@@ -308,6 +308,28 @@ struct NBT
     NBT(Tag tag) : name(""), tag(tag) {}
     NBT(pair<string, Tag> p) : name(p.first), tag(p.second) {}
 };
+/// Match a tag type to the corresponding C++ type through explicitly specifying template arguments of a lambda expressions with an explicit template parameter list
+template <typename Func>
+auto match(TagType type, Func &&func)
+{
+    switch (type)
+    { // clang-format off
+    case TagType::End: return func.template operator()<monostate>();
+    case TagType::Byte: return func.template operator()<int8_t>();
+    case TagType::Short: return func.template operator()<short>();
+    case TagType::Int: return func.template operator()<int>();
+    case TagType::Long: return func.template operator()<long long>();
+    case TagType::Float: return func.template operator()<float>();
+    case TagType::Double: return func.template operator()<double>();
+    case TagType::ByteArray: return func.template operator()<vector<int8_t>>();
+    case TagType::String: return func.template operator()<string>();
+    case TagType::List: return func.template operator()<List>();
+    case TagType::Compound: return func.template operator()<Compound>();
+    case TagType::IntArray: return func.template operator()<vector<int>>();
+    case TagType::LongArray: return func.template operator()<vector<long long>>();
+    default: throw runtime_error("unsupported tag ID");
+    } // clang-format on
+}
 } // namespace nbt
 
 namespace nbt::bin
@@ -438,24 +460,7 @@ template <typename T>
     requires same_as<T, List>
 T io<endian>::read(istream &in)
 {
-    TagType type = read<TagType>(in);
-    switch (type)
-    { // clang-format off
-    case TagType::End: return read<vector<monostate>>(in);
-    case TagType::Byte: return read<vector<int8_t>>(in);
-    case TagType::Short: return read<vector<short>>(in);
-    case TagType::Int: return read<vector<int>>(in);
-    case TagType::Long: return read<vector<long long>>(in);
-    case TagType::Float: return read<vector<float>>(in);
-    case TagType::Double: return read<vector<double>>(in);
-    case TagType::ByteArray: return read<vector<vector<int8_t>>>(in);
-    case TagType::String: return read<vector<string>>(in);
-    case TagType::List: return read<vector<List>>(in);
-    case TagType::Compound: return read<vector<Compound>>(in);
-    case TagType::IntArray: return read<vector<vector<int>>>(in);
-    case TagType::LongArray: return read<vector<vector<long long>>>(in);
-    default: throw runtime_error("unsupported tag ID");
-    } // clang-format on
+    return match(read<TagType>(in), [&in]<typename U> { return T(read<vector<U>>(in)); });
 }
 template <endian endian>
 template <typename T>
@@ -477,23 +482,7 @@ template <typename T>
     requires same_as<T, Tag>
 T io<endian>::read(istream &in, TagType type)
 {
-    switch (type)
-    { // clang-format off
-    case TagType::End: return read<monostate>(in);
-    case TagType::Byte: return read<int8_t>(in);
-    case TagType::Short: return read<short>(in);
-    case TagType::Int: return read<int>(in);
-    case TagType::Long: return read<long long>(in);
-    case TagType::Float: return read<float>(in);
-    case TagType::Double: return read<double>(in);
-    case TagType::ByteArray: return read<vector<int8_t>>(in);
-    case TagType::String: return read<string>(in);
-    case TagType::List: return read<List>(in);
-    case TagType::Compound: return read<Compound>(in);
-    case TagType::IntArray: return read<vector<int>>(in);
-    case TagType::LongArray: return read<vector<long long>>(in);
-    default: throw runtime_error("unsupported tag ID");
-    } // clang-format on
+    return match(type, [&in]<typename U> { return T(read<U>(in)); });
 }
 template <endian endian>
 NBT io<endian>::read(istream &in)
@@ -548,23 +537,7 @@ template <typename T>
 void io<endian>::write(ostream &out, const T &val)
 {
     write<TagType>(out, val.getType());
-    switch (val.getType())
-    { // clang-format off
-    case TagType::End: write(out, val.template get<monostate>()); return;
-    case TagType::Byte: write(out, val.template get<int8_t>()); return;
-    case TagType::Short: write(out, val.template get<short>()); return;
-    case TagType::Int: write(out, val.template get<int>()); return;
-    case TagType::Long: write(out, val.template get<long long>()); return;
-    case TagType::Float: write(out, val.template get<float>()); return;
-    case TagType::Double: write(out, val.template get<double>()); return;
-    case TagType::ByteArray: write(out, val.template get<vector<int8_t>>()); return;
-    case TagType::String: write(out, val.template get<string>()); return;
-    case TagType::List: write(out, val.template get<List>()); return;
-    case TagType::Compound: write(out, val.template get<Compound>()); return;
-    case TagType::IntArray: write(out, val.template get<vector<int>>()); return;
-    case TagType::LongArray: write(out, val.template get<vector<long long>>()); return;
-    default: throw runtime_error("unsupported tag ID");
-    } // clang-format on
+    match(val.getType(), [&out, &val]<typename U> { write(out, val.template get<U>()); });
 }
 template <endian endian>
 template <typename T>
@@ -584,24 +557,7 @@ template <typename T>
     requires same_as<T, Tag>
 void io<endian>::write(ostream &out, const T &val)
 {
-    TagType type = val.getType();
-    switch (val.getType())
-    { // clang-format off
-    case TagType::End: write(out, val.template get<monostate>()); return;
-    case TagType::Byte: write(out, val.template get<int8_t>()); return;
-    case TagType::Short: write(out, val.template get<short>()); return;
-    case TagType::Int: write(out, val.template get<int>()); return;
-    case TagType::Long: write(out, val.template get<long long>()); return;
-    case TagType::Float: write(out, val.template get<float>()); return;
-    case TagType::Double: write(out, val.template get<double>()); return;
-    case TagType::ByteArray: write(out, val.template get<vector<int8_t>>()); return;
-    case TagType::String: write(out, val.template get<string>()); return;
-    case TagType::List: write(out, val.template get<List>()); return;
-    case TagType::Compound: write(out, val.template get<Compound>()); return;
-    case TagType::IntArray: write(out, val.template get<vector<int>>()); return;
-    case TagType::LongArray: write(out, val.template get<vector<long long>>()); return;
-    default: throw runtime_error("unsupported tag ID");
-    } // clang-format on
+    match(val.getType(), [&out, &val]<typename U> { write(out, val.template get<U>()); });
 }
 template <endian endian>
 void io<endian>::write(ostream &out, const NBT &val)
@@ -851,22 +807,7 @@ inline Tag readListOrArray(istream &in)
         return vector<monostate>();
     }
     Tag tag = read<Tag>(in);
-    switch (tag.getType())
-    { // clang-format off
-    case TagType::Byte: return List(readList(in, vector{tag.get<int8_t>()}));
-    case TagType::Short: return List(readList(in, vector{tag.get<short>()}));
-    case TagType::Int: return List(readList(in, vector{tag.get<int>()}));
-    case TagType::Long: return List(readList(in, vector{tag.get<long long>()}));
-    case TagType::Float: return List(readList(in, vector{tag.get<float>()}));
-    case TagType::Double: return List(readList(in, vector{tag.get<double>()}));
-    case TagType::ByteArray: return List(readList(in, vector{tag.get<vector<int8_t>>()}));
-    case TagType::String: return List(readList(in, vector{tag.get<string>()}));
-    case TagType::List: return List(readList(in, vector{tag.get<List>()}));
-    case TagType::Compound: return List(readList(in, vector{tag.get<Compound>()}));
-    case TagType::IntArray: return List(readList(in, vector{tag.get<vector<int>>()}));
-    case TagType::LongArray: return List(readList(in, vector{tag.get<vector<long long>>()}));
-    default: throw runtime_error("unsupported tag ID");
-    } // clang-format on
+    return match(tag.getType(), [&in, &tag]<typename U> { return List(readList(in, vector{tag.get<U>()})); });
 }
 template <typename T>
     requires same_as<T, Tag>
@@ -1235,43 +1176,11 @@ void Writer::writeList(ostream &out, const vector<T> &vec, size_t depth) const
 }
 inline void Writer::write(ostream &out, const List &list, size_t depth) const
 {
-    switch (list.getType())
-    { // clang-format off
-    case TagType::End: writeList(out, list.get<monostate>(), depth); break;
-    case TagType::Byte: writeList(out, list.get<int8_t>(), depth); break;
-    case TagType::Short: writeList(out, list.get<short>(), depth); break;
-    case TagType::Int: writeList(out, list.get<int>(), depth); break;
-    case TagType::Long: writeList(out, list.get<long long>(), depth); break;
-    case TagType::Float: writeList(out, list.get<float>(), depth); break;
-    case TagType::Double: writeList(out, list.get<double>(), depth); break;
-    case TagType::ByteArray: writeList(out, list.get<vector<int8_t>>(), depth); break;
-    case TagType::String: writeList(out, list.get<string>(), depth); break;
-    case TagType::List: writeList(out, list.get<List>(), depth); break;
-    case TagType::Compound: writeList(out, list.get<Compound>(), depth); break;
-    case TagType::IntArray: writeList(out, list.get<vector<int>>(), depth); break;
-    case TagType::LongArray: writeList(out, list.get<vector<long long>>(), depth); break;
-    default: throw runtime_error("unsupported tag ID");
-    } // clang-format on
+    match(list.getType(), [this, &out, &list, depth]<typename U> { writeList(out, list.get<U>(), depth); });
 }
 inline void Writer::write(ostream &out, const Tag &tag, size_t depth) const
 {
-    switch (tag.getType())
-    { // clang-format off
-    case TagType::End: write(out, tag.get<monostate>(), depth); break;
-    case TagType::Byte: write(out, tag.get<int8_t>(), depth); break;
-    case TagType::Short: write(out, tag.get<short>(), depth); break;
-    case TagType::Int: write(out, tag.get<int>(), depth); break;
-    case TagType::Long: write(out, tag.get<long long>(), depth); break;
-    case TagType::Float: write(out, tag.get<float>(), depth); break;
-    case TagType::Double: write(out, tag.get<double>(), depth); break;
-    case TagType::ByteArray: write(out, tag.get<vector<int8_t>>(), depth); break;
-    case TagType::String: write(out, tag.get<string>(), depth); break;
-    case TagType::List: write(out, tag.get<List>(), depth); break;
-    case TagType::Compound: write(out, tag.get<Compound>(), depth); break;
-    case TagType::IntArray: write(out, tag.get<vector<int>>(), depth); break;
-    case TagType::LongArray: write(out, tag.get<vector<long long>>(), depth); break;
-    default: throw runtime_error("unsupported tag ID");
-    } // clang-format on
+    match(tag.getType(), [this, &out, &tag, depth]<typename U> { write(out, tag.get<U>(), depth); });
 }
 const Writer stdWriter;
 const Writer noLineFeedWriter{.line_feed = false};

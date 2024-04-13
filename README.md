@@ -77,7 +77,7 @@ Please ensure that you open a file in binary mode, or the functions may not work
 
 ### Reading & Writing SNBT
 
-`nbt::str::read` functions are provided to read SNBT from `istream`s. The functions return `nbt::Tag` instead of `nbt::NBT` because SNBT usually has no name. `nbt::str::Writer` class is provided to write SNBT to `ostream`s by using its non-static member function `nbt::str::Writer::write`, and configure the format by specifying its objects' non-static data members. `stdWriter`, `noLineFeedWriter` and `compactWriter` are provided as objects of class `Writer` for convenience, so that you can use them like `stdWriter.write()` to write SNBT directly.
+`nbt::str::read` functions are provided to read SNBT from `istream`s. The functions return `nbt::Tag` instead of `nbt::NBT` because SNBT usually has no name. `nbt::str::Writer` class is provided to write SNBT to `ostream`s by using its non-static member function `nbt::str::Writer::write`, and configure the format by specifying its objects' non-static data members. `stdWriter`, `noLineFeedWriter` and `compactWriter` are provided as objects of class `Writer` for convenience, so that you can use them like `stdWriter.write(out, tag)` to write SNBT directly.
 
 ```cpp
 /// Read SNBT from an input stream
@@ -94,7 +94,20 @@ const nbt::str::Writer compactWriter{.line_feed = false, .space = false};
 
 ### Access
 
-In general, there are two ways to access a NBT data, `get` function series and `get_if` function series. All of `class Tag`, `class Compound` and `class List` have the two member function series to get the value they stored. Each `get` function has a corresponding `get_if` function, and each `get` function and `get_if` function has a corresponding const-qualified function. Functions of `get` function series will return the reference to the value, or throw `runtime_error` on error. While functions of `get_if` function series will return the pointer to the value, or return `nullptr` on error. Specially, `get_if` functions will also simply return `nullptr` when `this == nullptr`, so optional chaining can be implemented.
+Some functions are provided to access a NBT data. They are `getType` functions, `get` function series, `get_if` function series, `get_num_as` function and `match` function.
+
+#### `getType`
+
+You can use the member function `getType` to get the type of a tag or the type of the tags in a List.
+
+```cpp
+inline nbt::TagType nbt::Tag::getType() const noexcept;
+inline nbt::TagType nbt::List::getType() const noexcept;
+```
+
+#### `get` & `get_if`
+
+All of `class Tag`, `class Compound` and `class List` have the two member function series to get the value they stored. Each `get` function has a corresponding `get_if` function, and each `get` function and `get_if` function has a corresponding const-qualified function. Functions of `get` function series will return the reference to the value, or throw `runtime_error` on error. While functions of `get_if` function series will return the pointer to the value, or return `nullptr` on error. Specially, `get_if` functions will also simply return `nullptr` when `this == nullptr`, so optional chaining can be implemented.
 
 ```cpp
 // (Notice that all `get_if` functions and const-qualified functions are ignored because they are very similar to `get` functions)
@@ -123,11 +136,31 @@ template<class T> vector<T> &List::get();
 template<class T> T &List::get(size_t i);
 ```
 
-You can use the `getType` member functions to get the type of a tag or the type of the tags in a List.
+#### `get_num_as`
+
+You can use the member function `get_num_as` to get the number in a tag as the provided numeric type.
 
 ```cpp
-inline nbt::TagType nbt::Tag::getType() const noexcept;
-inline nbt::TagType nbt::List::getType() const noexcept;
+template<class T> inline T nbt::Tag::get_num_as() const;
+```
+
+#### `match`
+
+`match` function is provided to match a tag type to the corresponding C++ type through explicitly specifying template arguments of a lambda expressions with an explicit template parameter list.
+
+```cpp
+template<class Func> auto nbt::match(nbt::TagType type, Func &&func);
+
+// example
+Tag tag(3.14);
+match(tag.getType(), [&tag]<typename T> {
+    if constexpr (integral<T> || floating_point<T>)
+        cout << tag.get<T>() << endl;
+});
+List list = vector<int>{1, 2, 3};
+bool is_nonempty_list = match(list.getType(), [&list]<typename T> {
+    return !list.get<T>().empty();
+});
 ```
 
 ### Example
