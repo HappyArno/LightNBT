@@ -1,6 +1,6 @@
 # LightNBT
 
-A free/libre, open-source and lightweight C++23 header-only library, supporting reading and writing either big endian or little endian NBT (Named Binary Tag) data, reading and writing SNBT (stringified Named Binary Tag) data, and accessing the data simply.
+A free/libre, open-source and lightweight C++23 header-only library, supporting reading and writing either big endian or little endian NBT (Named Binary Tag) data, reading and writing SNBT (stringified Named Binary Tag) data, reading region file, and accessing the data simply.
 
 ## Getting Started
 
@@ -24,9 +24,9 @@ int main()
 }
 ```
 
-## Usage
+## Usage of NBT Part
 
-Just include [`lnbt.hpp`](./lnbt.hpp) in the root directory to get started. Notice that C++23 is required.
+Just include [`lnbt.hpp`](./lnbt.hpp) in the root directory to get started. Notice that **C++23** is required.
 
 ### Data Structure
 
@@ -81,11 +81,11 @@ Please ensure that you open a file in binary mode, or the functions may not work
 
 ```cpp
 /// Read SNBT from an input stream
-inline nbt::Tag nbt::str::read(std::istream &in)
-inline nbt::Tag nbt::str::read(std::istream &&in)
+inline nbt::Tag nbt::str::read(std::istream &in);
+inline nbt::Tag nbt::str::read(std::istream &&in);
 /// Write SNBT to an output stream
-inline void nbt::str::Writer::write(std::ostream &out, const nbt::Tag &tag, size_t depth = 0ULL) const
-inline void nbt::str::Writer::write(std::ostream &&out, const nbt::Tag &tag, size_t depth = 0ULL) const
+inline void nbt::str::Writer::write(std::ostream &out, const nbt::Tag &tag, size_t depth = 0ULL) const;
+inline void nbt::str::Writer::write(std::ostream &&out, const nbt::Tag &tag, size_t depth = 0ULL) const;
 /// Build-in Writers
 const nbt::str::Writer stdWriter;
 const nbt::str::Writer noLineFeedWriter{.line_feed = false};
@@ -163,7 +163,51 @@ bool is_nonempty_list = match(list.getType(), [&list]<typename T> {
 });
 ```
 
-### Example
+## Usage of Region Part
+
+Just include [`lmca.hpp`](./lmca.hpp) in the root directory to get started. Notice that **C++23** and **zlib** is required.
+
+### Data Structure
+
+```cpp
+/// A chunk
+struct mca::Chunk
+{
+    uint32_t timestamp;
+    NBT data;
+};
+/// A region, which stores a group of 32×32 chunks
+struct mca::Region : std::array<std::optional<mca::Chunk>, 1024>;
+```
+
+### Read Chunks
+
+```cpp
+/// Read the data of a chunk from a region file
+nbt::NBT mca::readChunk(std::istream &region, mca::SectorInfo location);
+nbt::NBT mca::readChunk(std::istream &&region, mca::SectorInfo location);
+/// Read a chunk from a region file
+mca::Chunk mca::readChunk(std::istream &region, size_t x, size_t z);
+mca::Chunk mca::readChunk(std::istream &&region, size_t x, size_t z);
+```
+
+### Read Regions
+
+```cpp
+/// Read a region from a region file
+mca::Region mca::readRegion(std::istream &region);
+mca::Region mca::readRegion(std::istream &&region);
+```
+
+### Access
+
+```cpp
+/// Get a chunk by its local coordinates within a region
+inline std::optional<mca::Chunk> &mca::Region::get(size_t x, size_t z);
+inline const std::optional<mca::Chunk> &mca::Region::get(size_t x, size_t z) const;
+```
+
+## Example
 
 The examples are in the [example](./example) directory.
 
@@ -174,7 +218,6 @@ The examples are in the [example](./example) directory.
 
 ## Todo
 
-- Support `.mca` file
 - Support the 8-byte header of bedrock `level.dat`
 - Support automatic identifying the type of a file
 
