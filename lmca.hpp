@@ -66,13 +66,13 @@ struct SectorInfo
     uint32_t offset;
     uint8_t count;
 };
-SectorInfo getLocation(uint32_t location)
+inline SectorInfo getLocation(uint32_t location)
 {
     return {endian::native == endian::little ? byteswap(location) >> 8 : location << 8,
             reinterpret_cast<uint8_t *>(&location)[3]};
 }
 /// Read the data of a chunk from a region file
-NBT readChunk(istream &region, SectorInfo location)
+inline NBT readChunk(istream &region, SectorInfo location)
 {
     region.seekg(0x1000 * location.offset);
     uint32_t length;
@@ -92,12 +92,12 @@ NBT readChunk(istream &region, SectorInfo location)
         throw runtime_error("unknown compression schemes");
     }
 }
-NBT readChunk(istream &&region, SectorInfo location)
+inline NBT readChunk(istream &&region, SectorInfo location)
 {
     return readChunk(region, location);
 }
 /// Read a chunk from a region file
-Chunk readChunk(istream &region, size_t x, size_t z)
+inline Chunk readChunk(istream &region, size_t x, size_t z)
 {
     region.exceptions(istream::eofbit | istream::failbit | istream::badbit);
 
@@ -117,12 +117,12 @@ Chunk readChunk(istream &region, size_t x, size_t z)
 
     return {timestamp, readChunk(region, location)};
 }
-Chunk readChunk(istream &&region, size_t x, size_t z)
+inline Chunk readChunk(istream &&region, size_t x, size_t z)
 {
     return readChunk(region, x, z);
 }
 /// Read a region from a region file
-Region readRegion(istream &region)
+inline Region readRegion(istream &region)
 {
     region.exceptions(istream::eofbit | istream::failbit | istream::badbit);
 
@@ -139,7 +139,7 @@ Region readRegion(istream &region)
     }
     return ret;
 }
-Region readRegion(istream &&region)
+inline Region readRegion(istream &&region)
 {
     return readRegion(region);
 }

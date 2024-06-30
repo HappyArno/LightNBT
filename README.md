@@ -26,7 +26,7 @@ int main()
 
 ## Usage of NBT Part
 
-Just include [`lnbt.hpp`](./lnbt.hpp) in the root directory to get started. Notice that **C++23** is required.
+Just include [`lnbt.hpp`](./lnbt.hpp) in the root directory to get started. Note that **C++23** is required.
 
 ### Data Structure
 
@@ -73,7 +73,7 @@ template<endian endian = endian::big> inline void nbt::bin::write(ostream &out, 
 template<endian endian = endian::big> inline void nbt::bin::write(ostream &&out, const NBT &val);
 ```
 
-Please ensure that you open a file in binary mode, or the functions may not work as expected. Also notice that most of the NBT files are compressed, so a compression library is necessary.
+Please ensure that you open a file in binary mode, or the functions may not work as expected. Also Note that most of the NBT files are compressed, so a compression library is necessary.
 
 ### Reading & Writing SNBT
 
@@ -110,7 +110,7 @@ inline nbt::TagType nbt::List::getType() const noexcept;
 All of `class Tag`, `class Compound` and `class List` have the two member function series to get the value they stored. Each `get` function has a corresponding `get_if` function, and each `get` function and `get_if` function has a corresponding const-qualified function. Functions of `get` function series will return the reference to the value, or throw `runtime_error` on error. While functions of `get_if` function series will return the pointer to the value, or return `nullptr` on error. Specially, `get_if` functions will also simply return `nullptr` when `this == nullptr`, so optional chaining can be implemented.
 
 ```cpp
-// (Notice that all `get_if` functions and const-qualified functions are ignored because they are very similar to `get` functions)
+// (Note that all `get_if` functions and const-qualified functions are ignored because they are very similar to `get` functions)
 
 using nbt::Compound, nbt::List, nbt::Tag, std::string, std::vector;
 
@@ -165,7 +165,7 @@ bool is_nonempty_list = match(list.getType(), [&list]<typename T> {
 
 ## Usage of Region Part
 
-Just include [`lmca.hpp`](./lmca.hpp) in the root directory to get started. Notice that **C++23** and **zlib** is required.
+Just include [`lmca.hpp`](./lmca.hpp) in the root directory to get started. Note that **C++23** and **zlib** is required.
 
 ### Data Structure
 

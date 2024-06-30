@@ -23,6 +23,7 @@
 #include <charconv>
 #include <concepts>
 #include <cstdint>
+#include <initializer_list>
 #include <istream>
 #include <map>
 #include <ostream>
@@ -51,8 +52,28 @@ enum class TagType
     IntArray = 11,
     LongArray = 12
 };
+
+struct Compound;
+struct List;
 struct Tag;
 struct NBT;
+
+/// Specify that a type is a valid tag type
+template <typename T>
+concept is_tag = same_as<T, monostate> || same_as<T, int8_t> || same_as<T, short> || same_as<T, int> || same_as<T, long long> || same_as<T, float> || same_as<T, double> || same_as<T, vector<int8_t>> || same_as<T, string> || same_as<T, List> || same_as<T, Compound> || same_as<T, vector<int>> || same_as<T, vector<long long>>;
+/// Check if a type is a instance of vector
+template <typename T>
+constexpr bool is_vector = false;
+template <typename T>
+constexpr bool is_vector<vector<T>> = true;
+/// Specify that a type is a valid array type
+template <typename T>
+concept is_array = same_as<T, vector<int8_t>> || same_as<T, vector<int>> || same_as<T, vector<long long>>;
+/// Specify that a type is a valid list type
+/// Note: it is different from `same_as<T, nbt::List>`
+template <typename T>
+concept is_list = is_vector<T> && is_tag<typename T::value_type>;
+
 /// A list of name-tag pairs
 struct Compound : public map<string, Tag>
 {
@@ -80,6 +101,8 @@ struct Compound : public map<string, Tag>
 struct List : public variant<vector<monostate>, vector<int8_t>, vector<short>, vector<int>, vector<long long>, vector<float>, vector<double>, vector<vector<int8_t>>, vector<string>, vector<List>, vector<Compound>, vector<vector<int>>, vector<vector<long long>>>
 {
     using variant::variant;
+    template <is_tag T>
+    List(initializer_list<T> l) : variant(vector(l)) {}
     /// Get the type of the tags in the List
     inline TagType getType() const noexcept
     {
@@ -132,27 +155,15 @@ struct List : public variant<vector<monostate>, vector<int8_t>, vector<short>, v
         return &((*vec)[i]);
     }
 };
-
-/// Specify that a type is a valid tag type
-template <typename T>
-concept is_tag = same_as<T, monostate> || same_as<T, int8_t> || same_as<T, short> || same_as<T, int> || same_as<T, long long> || same_as<T, float> || same_as<T, double> || same_as<T, vector<int8_t>> || same_as<T, string> || same_as<T, List> || same_as<T, Compound> || same_as<T, vector<int>> || same_as<T, vector<long long>>;
-/// Check if a type is a instance of vector
-template <typename T>
-constexpr bool is_vector = false;
-template <typename T>
-constexpr bool is_vector<vector<T>> = true;
-/// Specify that a type is a valid array type
-template <typename T>
-concept is_array = same_as<T, vector<int8_t>> || same_as<T, vector<int>> || same_as<T, vector<long long>>;
-/// Specify that a type is a valid list type
-/// Note: it is different from `same_as<T, nbt::List>`
-template <typename T>
-concept is_list = is_vector<T> && is_tag<typename T::value_type>;
-
 /// A unnamed tag
 struct Tag : public variant<monostate, int8_t, short, int, long long, float, double, vector<int8_t>, string, List, Compound, vector<int>, vector<long long>>
 {
     using variant::variant;
+    /// Initializer-list constructor for Compound
+    Tag(initializer_list<Compound::value_type> l) : variant(Compound(l)) {}
+    /// Initializer-list constructor for List
+    template <is_tag T>
+    Tag(initializer_list<T> l) : variant(List(l)) {}
     /// Get the type of the tag
     inline TagType getType() const noexcept
     {
@@ -305,7 +316,7 @@ struct NBT
     Tag tag;
     NBT() = default;
     NBT(string name, Tag tag) : name(name), tag(tag) {}
-    NBT(Tag tag) : name(""), tag(tag) {}
+    NBT(Tag tag) : name(), tag(tag) {}
     NBT(pair<string, Tag> p) : name(p.first), tag(p.second) {}
 };
 /// Match a tag type to the corresponding C++ type through explicitly specifying template arguments of a lambda expressions with an explicit template parameter list
@@ -1006,37 +1017,37 @@ struct Writer
         writeString(out, string_view(buf, ptr));
     }
 #pragma clang diagnostic pop
-    inline void write(ostream &out, int8_t val, size_t depth = 0) const
+    void write(ostream &out, int8_t val, size_t depth = 0) const
     {
         write<>(out, val, depth);
         writeString(out, byte_tag_suffix);
     }
-    inline void write(ostream &out, short val, size_t depth = 0) const
+    void write(ostream &out, short val, size_t depth = 0) const
     {
         write<>(out, val, depth);
         writeString(out, short_tag_suffix);
     }
-    inline void write(ostream &out, int val, size_t depth = 0) const
+    void write(ostream &out, int val, size_t depth = 0) const
     {
         write<>(out, val, depth);
         writeString(out, int_tag_suffix);
     }
-    inline void write(ostream &out, long long val, size_t depth = 0) const
+    void write(ostream &out, long long val, size_t depth = 0) const
     {
         write<>(out, val, depth);
         writeString(out, long_tag_suffix);
     }
-    inline void write(ostream &out, float val, size_t depth = 0) const
+    void write(ostream &out, float val, size_t depth = 0) const
     {
         write<>(out, val, depth);
         writeString(out, float_tag_suffix);
     }
-    inline void write(ostream &out, double val, size_t depth = 0) const
+    void write(ostream &out, double val, size_t depth = 0) const
     {
         write<>(out, val, depth);
         writeString(out, double_tag_suffix);
     }
-    inline void write(ostream &out, const string_view s, size_t depth = 0) const
+    void write(ostream &out, const string_view s, size_t depth = 0) const
     {
         char mark = s.find('\"') != string_view::npos && s.find('\'') == string_view::npos ? '\'' : '\"';
         out.put(mark);
@@ -1069,11 +1080,11 @@ struct Writer
         }
         out.put(mark);
     }
-    inline void write(ostream &out, const string &s, size_t depth = 0) const
+    void write(ostream &out, const string &s, size_t depth = 0) const
     {
         write(out, string_view(s), depth);
     }
-    inline void writeName(ostream &out, const string_view name) const
+    void writeName(ostream &out, const string_view name) const
     {
         bool quoted = false;
         for (char c : name)
@@ -1092,14 +1103,14 @@ struct Writer
     {
         writeArray(out, val, depth);
     }
-    inline void write(ostream &out, const Compound &compound, size_t depth = 0) const;
+    void write(ostream &out, const Compound &compound, size_t depth = 0) const;
     template <typename T>
     void writeList(ostream &out, const vector<T> &vec, size_t depth = 0) const;
-    inline void write(ostream &out, const List &list, size_t depth = 0) const;
+    void write(ostream &out, const List &list, size_t depth = 0) const;
     /// Write SNBT to an output stream
-    inline void write(ostream &out, const Tag &tag, size_t depth = 0) const;
+    void write(ostream &out, const Tag &tag, size_t depth = 0) const;
     /// Write SNBT to an output stream
-    inline void write(ostream &&out, const Tag &tag, size_t depth = 0) const
+    void write(ostream &&out, const Tag &tag, size_t depth = 0) const
     {
         write(out, tag, depth);
     }
@@ -1129,7 +1140,7 @@ void Writer::writeArray(ostream &out, const vector<T> &vec, size_t depth) const
         }
     out.put(']');
 }
-void Writer::write(ostream &out, const Compound &compound, size_t depth) const
+inline void Writer::write(ostream &out, const Compound &compound, size_t depth) const
 {
     out.put('{');
     if (auto i = compound.begin(); i != compound.end())
