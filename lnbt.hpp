@@ -23,6 +23,7 @@
 #include <charconv>
 #include <concepts>
 #include <cstdint>
+#include <initializer_list>
 #include <istream>
 #include <map>
 #include <ostream>
@@ -51,8 +52,28 @@ enum class TagType
     IntArray = 11,
     LongArray = 12
 };
+
+struct Compound;
+struct List;
 struct Tag;
 struct NBT;
+
+/// Specify that a type is a valid tag type
+template <typename T>
+concept is_tag = same_as<T, monostate> || same_as<T, int8_t> || same_as<T, short> || same_as<T, int> || same_as<T, long long> || same_as<T, float> || same_as<T, double> || same_as<T, vector<int8_t>> || same_as<T, string> || same_as<T, List> || same_as<T, Compound> || same_as<T, vector<int>> || same_as<T, vector<long long>>;
+/// Check if a type is a instance of vector
+template <typename T>
+constexpr bool is_vector = false;
+template <typename T>
+constexpr bool is_vector<vector<T>> = true;
+/// Specify that a type is a valid array type
+template <typename T>
+concept is_array = same_as<T, vector<int8_t>> || same_as<T, vector<int>> || same_as<T, vector<long long>>;
+/// Specify that a type is a valid list type
+/// Note: it is different from `same_as<T, nbt::List>`
+template <typename T>
+concept is_list = is_vector<T> && is_tag<typename T::value_type>;
+
 /// A list of name-tag pairs
 struct Compound : public map<string, Tag>
 {
@@ -80,6 +101,8 @@ struct Compound : public map<string, Tag>
 struct List : public variant<vector<monostate>, vector<int8_t>, vector<short>, vector<int>, vector<long long>, vector<float>, vector<double>, vector<vector<int8_t>>, vector<string>, vector<List>, vector<Compound>, vector<vector<int>>, vector<vector<long long>>>
 {
     using variant::variant;
+    template <is_tag T>
+    List(initializer_list<T> l) : variant(vector(l)) {}
     /// Get the type of the tags in the List
     inline TagType getType() const noexcept
     {
@@ -132,27 +155,15 @@ struct List : public variant<vector<monostate>, vector<int8_t>, vector<short>, v
         return &((*vec)[i]);
     }
 };
-
-/// Specify that a type is a valid tag type
-template <typename T>
-concept is_tag = same_as<T, monostate> || same_as<T, int8_t> || same_as<T, short> || same_as<T, int> || same_as<T, long long> || same_as<T, float> || same_as<T, double> || same_as<T, vector<int8_t>> || same_as<T, string> || same_as<T, List> || same_as<T, Compound> || same_as<T, vector<int>> || same_as<T, vector<long long>>;
-/// Check if a type is a instance of vector
-template <typename T>
-constexpr bool is_vector = false;
-template <typename T>
-constexpr bool is_vector<vector<T>> = true;
-/// Specify that a type is a valid array type
-template <typename T>
-concept is_array = same_as<T, vector<int8_t>> || same_as<T, vector<int>> || same_as<T, vector<long long>>;
-/// Specify that a type is a valid list type
-/// Note: it is different from `same_as<T, nbt::List>`
-template <typename T>
-concept is_list = is_vector<T> && is_tag<typename T::value_type>;
-
 /// A unnamed tag
 struct Tag : public variant<monostate, int8_t, short, int, long long, float, double, vector<int8_t>, string, List, Compound, vector<int>, vector<long long>>
 {
     using variant::variant;
+    /// Initializer-list constructor for Compound
+    Tag(initializer_list<Compound::value_type> l) : variant(Compound(l)) {}
+    /// Initializer-list constructor for List
+    template <is_tag T>
+    Tag(initializer_list<T> l) : variant(List(l)) {}
     /// Get the type of the tag
     inline TagType getType() const noexcept
     {
@@ -305,7 +316,7 @@ struct NBT
     Tag tag;
     NBT() = default;
     NBT(string name, Tag tag) : name(name), tag(tag) {}
-    NBT(Tag tag) : name(""), tag(tag) {}
+    NBT(Tag tag) : name(), tag(tag) {}
     NBT(pair<string, Tag> p) : name(p.first), tag(p.second) {}
 };
 /// Match a tag type to the corresponding C++ type through explicitly specifying template arguments of a lambda expressions with an explicit template parameter list
