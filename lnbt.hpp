@@ -61,7 +61,11 @@ struct NBT;
 
 /// Specify that a type is a valid tag type
 template <typename T>
-concept is_tag = same_as<T, monostate> || same_as<T, int8_t> || same_as<T, short> || same_as<T, int> || same_as<T, long long> || same_as<T, float> || same_as<T, double> || same_as<T, vector<int8_t>> || same_as<T, string> || same_as<T, List> || same_as<T, Compound> || same_as<T, vector<int>> || same_as<T, vector<long long>>;
+concept is_tag =
+    same_as<T, monostate> || same_as<T, int8_t> || same_as<T, short> || same_as<T, int> ||
+    same_as<T, long long> || same_as<T, float> || same_as<T, double> || same_as<T, vector<int8_t>> ||
+    same_as<T, string> || same_as<T, List> || same_as<T, Compound> || same_as<T, vector<int>> ||
+    same_as<T, vector<long long>>;
 /// Check if a type is a instance of vector
 template <typename T>
 constexpr bool is_vector = false;
@@ -99,13 +103,15 @@ struct Compound : public map<string, Tag>
     const T *get_if(string name) const;
 };
 /// An ordered list of unnamed tags, all of the same type
-struct List : public variant<vector<monostate>, vector<int8_t>, vector<short>, vector<int>, vector<long long>, vector<float>, vector<double>, vector<vector<int8_t>>, vector<string>, vector<List>, vector<Compound>, vector<vector<int>>, vector<vector<long long>>>
+struct List : public variant<vector<monostate>, vector<int8_t>, vector<short>, vector<int>, vector<long long>,
+                             vector<float>, vector<double>, vector<vector<int8_t>>, vector<string>, vector<List>,
+                             vector<Compound>, vector<vector<int>>, vector<vector<long long>>>
 {
     using variant::variant;
     template <is_tag T>
     List(initializer_list<T> l) : variant(vector(l)) {}
     /// Get the type of the tags in the List
-    TagType getType() const noexcept
+    constexpr TagType getType() const noexcept
     {
         return static_cast<TagType>(index());
     }
@@ -157,7 +163,8 @@ struct List : public variant<vector<monostate>, vector<int8_t>, vector<short>, v
     }
 };
 /// A unnamed tag
-struct Tag : public variant<monostate, int8_t, short, int, long long, float, double, vector<int8_t>, string, List, Compound, vector<int>, vector<long long>>
+struct Tag : public variant<monostate, int8_t, short, int, long long, float, double, vector<int8_t>,
+                            string, List, Compound, vector<int>, vector<long long>>
 {
     using variant::variant;
     /// Initializer-list constructor for Compound
@@ -166,7 +173,7 @@ struct Tag : public variant<monostate, int8_t, short, int, long long, float, dou
     template <is_tag T>
     Tag(initializer_list<T> l) : variant(List(l)) {}
     /// Get the type of the tag
-    TagType getType() const noexcept
+    constexpr TagType getType() const noexcept
     {
         return static_cast<TagType>(index());
     }
@@ -209,7 +216,8 @@ struct Tag : public variant<monostate, int8_t, short, int, long long, float, dou
         return get<T>().at(i);
     }
     template <typename T>
-        requires same_as<T, int8_t> || same_as<T, short> || same_as<T, int> || same_as<T, long long> || same_as<T, float> || same_as<T, double>
+        requires same_as<T, int8_t> || same_as<T, short> || same_as<T, int> ||
+                 same_as<T, long long> || same_as<T, float> || same_as<T, double>
     T get_num_as() const
     {
         switch (getType())
@@ -320,7 +328,9 @@ struct NBT
     NBT(Tag tag) : name(), tag(tag) {}
     NBT(pair<string, Tag> p) : name(p.first), tag(p.second) {}
 };
-/// Match a tag type to the corresponding C++ type through explicitly specifying template arguments of a lambda expressions with an explicit template parameter list
+/// Match a tag type to the corresponding C++ type through explicitly specifying
+/// template arguments of a lambda expressions with an explicit template
+/// parameter list
 template <typename Func>
 auto match(TagType type, Func &&func)
 {
@@ -342,6 +352,9 @@ auto match(TagType type, Func &&func)
     default: throw runtime_error("unsupported tag ID");
     } // clang-format on
 }
+/// Get the ID of a type
+template <is_tag T>
+constexpr TagType tag_type_of = Tag(T()).getType();
 } // namespace nbt
 
 namespace nbt::bin
@@ -472,7 +485,9 @@ template <typename T>
     requires same_as<T, List>
 T io<endian>::read(istream &in)
 {
-    return match(read<TagType>(in), [&in]<typename U> { return T(read<vector<U>>(in)); });
+    return match(read<TagType>(in), [&in]<typename U> {
+        return T(read<vector<U>>(in));
+    });
 }
 template <endian endian>
 template <typename T>
@@ -494,7 +509,9 @@ template <typename T>
     requires same_as<T, Tag>
 T io<endian>::read(istream &in, TagType type)
 {
-    return match(type, [&in]<typename U> { return T(read<U>(in)); });
+    return match(type, [&in]<typename U> {
+        return T(read<U>(in));
+    });
 }
 template <endian endian>
 NBT io<endian>::read(istream &in)
@@ -549,7 +566,9 @@ template <typename T>
 void io<endian>::write(ostream &out, const T &val)
 {
     write<TagType>(out, val.getType());
-    match(val.getType(), [&out, &val]<typename U> { write(out, val.template get<U>()); });
+    match(val.getType(), [&out, &val]<typename U> {
+        write(out, val.template get<U>());
+    });
 }
 template <endian endian>
 template <typename T>
@@ -569,7 +588,9 @@ template <typename T>
     requires same_as<T, Tag>
 void io<endian>::write(ostream &out, const T &val)
 {
-    match(val.getType(), [&out, &val]<typename U> { write(out, val.template get<U>()); });
+    match(val.getType(), [&out, &val]<typename U> {
+        write(out, val.template get<U>());
+    });
 }
 template <endian endian>
 void io<endian>::write(ostream &out, const NBT &val)
@@ -609,7 +630,9 @@ void write(ostream &&out, const NBT &val)
 
 namespace nbt::str
 {
-/// The functions in this namespace have some checks removed to improve performance, so never use these functions and use the functions in the nbt::str namespace instead.
+/// The functions in this namespace have some checks removed to improve
+/// performance, so never use these functions and use the functions in the
+/// nbt::str namespace instead.
 namespace detail
 {
 inline void skipWhitespace(istream &in)
@@ -629,7 +652,8 @@ inline void check(istream &in, char c)
 }
 inline bool isAllowedInUnquotedString(char c)
 {
-    return c >= '0' && c <= '9' || c >= 'A' && c <= 'Z' || c >= 'a' && c <= 'z' || c == '_' || c == '-' || c == '.' || c == '+';
+    return c >= '0' && c <= '9' || c >= 'A' && c <= 'Z' || c >= 'a' && c <= 'z' ||
+           c == '_' || c == '-' || c == '.' || c == '+';
 }
 template <typename T>
     requires integral<T> || floating_point<T>
@@ -819,7 +843,9 @@ inline Tag readListOrArray(istream &in)
         return vector<monostate>();
     }
     Tag tag = read<Tag>(in);
-    return match(tag.getType(), [&in, &tag]<typename U> { return List(readList(in, vector{tag.get<U>()})); });
+    return match(tag.getType(), [&in, &tag]<typename U> {
+        return List(readList(in, vector{tag.get<U>()}));
+    });
 }
 template <typename T>
     requires same_as<T, Tag>
@@ -1152,7 +1178,8 @@ inline void Writer::write(ostream &out, const Compound &compound, size_t depth) 
 template <typename T>
 void Writer::writeList(ostream &out, const vector<T> &vec, size_t depth) const
 {
-    constexpr bool needWrap = same_as<T, Compound> || same_as<T, List> || same_as<T, string> || is_vector<T>;
+    constexpr bool needWrap =
+        same_as<T, Compound> || same_as<T, List> || same_as<T, string> || is_vector<T>;
     out.put('[');
     if (auto i = vec.begin(); i != vec.end())
     {
@@ -1176,11 +1203,15 @@ void Writer::writeList(ostream &out, const vector<T> &vec, size_t depth) const
 }
 inline void Writer::write(ostream &out, const List &list, size_t depth) const
 {
-    match(list.getType(), [this, &out, &list, depth]<typename U> { writeList(out, list.get<U>(), depth); });
+    match(list.getType(), [this, &out, &list, depth]<typename U> {
+        writeList(out, list.get<U>(), depth);
+    });
 }
 inline void Writer::write(ostream &out, const Tag &tag, size_t depth) const
 {
-    match(tag.getType(), [this, &out, &tag, depth]<typename U> { write(out, tag.get<U>(), depth); });
+    match(tag.getType(), [this, &out, &tag, depth]<typename U> {
+        write(out, tag.get<U>(), depth);
+    });
 }
 const Writer stdWriter;
 const Writer noLineFeedWriter{.line_feed = false};
