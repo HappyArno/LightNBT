@@ -1,6 +1,6 @@
 /*
    LightNBT: A lightweight C++23 header-only NBT library
-   Copyright (C) 2024 HappyArno
+   Copyright (C) 2024-2025 HappyArno
 
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU Lesser General Public License as published by
@@ -23,6 +23,7 @@
 #include <charconv>
 #include <concepts>
 #include <cstdint>
+#include <format>
 #include <initializer_list>
 #include <istream>
 #include <map>
@@ -104,7 +105,7 @@ struct List : public variant<vector<monostate>, vector<int8_t>, vector<short>, v
     template <is_tag T>
     List(initializer_list<T> l) : variant(vector(l)) {}
     /// Get the type of the tags in the List
-    inline TagType getType() const noexcept
+    TagType getType() const noexcept
     {
         return static_cast<TagType>(index());
     }
@@ -165,7 +166,7 @@ struct Tag : public variant<monostate, int8_t, short, int, long long, float, dou
     template <is_tag T>
     Tag(initializer_list<T> l) : variant(List(l)) {}
     /// Get the type of the tag
-    inline TagType getType() const noexcept
+    TagType getType() const noexcept
     {
         return static_cast<TagType>(index());
     }
@@ -347,7 +348,7 @@ namespace nbt::bin
 {
 /// A helper function for changing the endian of a value to endian::native
 template <endian endian, typename T>
-inline T endianswap(T val)
+T endianswap(T val)
 {
     if constexpr (endian::native == endian)
         return val;
@@ -580,27 +581,27 @@ void io<endian>::write(ostream &out, const NBT &val)
 
 /// Read NBT from a binary input stream
 template <endian endian = endian::big>
-inline NBT read(istream &in)
+NBT read(istream &in)
 {
     in.exceptions(istream::eofbit | istream::failbit | istream::badbit);
     return io<endian>::read(in);
 }
 /// Read NBT from a binary input stream
 template <endian endian = endian::big>
-inline NBT read(istream &&in)
+NBT read(istream &&in)
 {
     return read<endian>(in);
 }
 /// Write NBT to a binary output stream
 template <endian endian = endian::big>
-inline void write(ostream &out, const NBT &val)
+void write(ostream &out, const NBT &val)
 {
     out.exceptions(ostream::eofbit | ostream::failbit | ostream::badbit);
     io<endian>::write(out, val);
 }
 /// Write NBT to a binary output stream
 template <endian endian = endian::big>
-inline void write(ostream &&out, const NBT &val)
+void write(ostream &&out, const NBT &val)
 {
     write<endian>(out, val);
 }
@@ -642,7 +643,7 @@ T readNum(const string_view s)
 }
 template <typename T, char suffix>
     requires integral<T> || floating_point<T>
-inline T readNumWithSuffix(const string_view s)
+T readNumWithSuffix(const string_view s)
 {
     if (tolower(s.back()) != suffix)
         throw runtime_error("unexpected type");
@@ -870,14 +871,14 @@ T read(istream &in)
 
 template <typename T>
     requires integral<T> || floating_point<T>
-inline T read(istream &in)
+T read(istream &in)
 {
     detail::skipWhitespace(in);
     return detail::read<T>(detail::readUnquotedString(in));
 }
 template <typename T>
     requires same_as<T, string>
-inline T read(istream &in)
+T read(istream &in)
 {
     detail::skipWhitespace(in);
     char c = in.peek();
@@ -887,7 +888,7 @@ inline T read(istream &in)
 }
 template <typename T>
     requires same_as<T, Compound>
-inline T read(istream &in)
+T read(istream &in)
 {
     detail::skipWhitespace(in);
     detail::check(in, '{');
@@ -895,14 +896,14 @@ inline T read(istream &in)
 }
 template <typename T>
     requires same_as<T, List>
-inline T read(istream &in)
+T read(istream &in)
 {
     detail::skipWhitespace(in);
     detail::check(in, '[');
     return detail::readListOrArray(in).get<T>();
 }
 template <is_list T>
-inline T read(istream &in)
+T read(istream &in)
 {
     detail::skipWhitespace(in);
     detail::check(in, '[');
@@ -910,13 +911,13 @@ inline T read(istream &in)
 }
 template <typename T>
     requires same_as<T, Tag>
-inline T read(istream &in)
+T read(istream &in)
 {
     detail::skipWhitespace(in);
     return detail::read<T>(in);
 }
 template <typename T>
-inline T read(istream &&in)
+T read(istream &&in)
 {
     return read<T>(in);
 }
@@ -946,10 +947,10 @@ struct Writer
     bool line_feed = true;
     /// Whether write spaces
     bool space = true;
-    /// Specify floating-point formatting for std::to_chars
-    chars_format fmt{};
-    /// Specify the default size of a buffer
-    size_t buffer_size = 100;
+    /// Format string for formatting integers
+    string_view integer_fmt = "{}";
+    /// Format string for formatting floating-point
+    string_view floating_point_fmt = "{}";
     string_view byte_tag_suffix = "b";
     string_view short_tag_suffix = "s";
     string_view int_tag_suffix = "";
@@ -957,16 +958,16 @@ struct Writer
     string_view float_tag_suffix = "f";
     string_view double_tag_suffix = "d";
 
-    inline void writeSpace(ostream &out) const
+    void writeSpace(ostream &out) const
     {
         if (space)
             out.put(' ');
     }
-    inline void writeString(ostream &out, const string_view s) const
+    void writeString(ostream &out, const string_view s) const
     {
         out.write(s.data(), s.size());
     }
-    inline void writeLineFeed(ostream &out, size_t depth) const
+    void writeLineFeed(ostream &out, size_t depth) const
     {
         if (line_feed)
         {
@@ -975,12 +976,12 @@ struct Writer
                 writeString(out, indent);
         }
     }
-    inline void writeCommaWithSpace(ostream &out) const
+    void writeCommaWithSpace(ostream &out) const
     {
         out.put(',');
         writeSpace(out);
     }
-    inline void writeCommaWithLineFeed(ostream &out, size_t depth) const
+    void writeCommaWithLineFeed(ostream &out, size_t depth) const
     {
         out.put(',');
         if (line_feed)
@@ -988,35 +989,23 @@ struct Writer
         else
             writeSpace(out);
     }
-    inline void write(ostream &out, monostate val, size_t depth = 0) const
+    void write(ostream &out, monostate val, size_t depth = 0) const
     {
         if (end_tag_throw)
             throw runtime_error("Reach end tag");
         else
             writeString(out, end_tag);
     }
-// Variable-length array (VLA) is required here
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wvla-cxx-extension"
     template <integral T>
     void write(ostream &out, T val, size_t depth = 0) const
     {
-        char buf[buffer_size];
-        auto [ptr, ec]{to_chars(buf, buf + buffer_size, val)};
-        if (ec != errc())
-            throw runtime_error("to_chars() error");
-        writeString(out, string_view(buf, ptr));
+        writeString(out, vformat(integer_fmt, make_format_args(val)));
     }
     template <floating_point T>
     void write(ostream &out, T val, size_t depth = 0) const
     {
-        char buf[buffer_size];
-        auto [ptr, ec]{to_chars(buf, buf + buffer_size, val, fmt)};
-        if (ec != errc())
-            throw runtime_error("to_chars() error");
-        writeString(out, string_view(buf, ptr));
+        writeString(out, vformat(floating_point_fmt, make_format_args(val)));
     }
-#pragma clang diagnostic pop
     void write(ostream &out, int8_t val, size_t depth = 0) const
     {
         write<>(out, val, depth);

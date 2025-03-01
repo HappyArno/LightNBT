@@ -223,6 +223,6 @@ The examples are in the [example](./example) directory.
 
 ## License
 
-Copyright (C) 2024 HappyArno
+Copyright (C) 2024-2025 HappyArno
 
 This program is licensed under [LGPL-3.0-or-later](https://www.gnu.org/licenses/lgpl-3.0.html). See [COPYING](./COPYING) and [COPYING.LESSER](./COPYING.LESSER) within the root directory for more information.
