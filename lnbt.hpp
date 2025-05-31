@@ -652,7 +652,7 @@ inline void check(istream &in, char c)
 }
 inline bool isAllowedInUnquotedString(char c)
 {
-    return c >= '0' && c <= '9' || c >= 'A' && c <= 'Z' || c >= 'a' && c <= 'z' ||
+    return (c >= '0' && c <= '9') || (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') ||
            c == '_' || c == '-' || c == '.' || c == '+';
 }
 template <typename T>
@@ -1101,7 +1101,6 @@ struct Writer
     }
     void writeName(ostream &out, const string_view name) const
     {
-        bool quoted = false;
         for (char c : name)
             if (!str::detail::isAllowedInUnquotedString(c))
             {
