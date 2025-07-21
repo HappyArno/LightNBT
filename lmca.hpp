@@ -19,9 +19,10 @@
 #ifndef _LMCA_HPP
 #define _LMCA_HPP
 
-#include "include/zstr.hpp"
 #include "lnbt.hpp"
 #include <array>
+#include <functional>
+#include <memory>
 #include <optional>
 
 namespace mca
@@ -71,8 +72,18 @@ inline SectorInfo getLocation(uint32_t location)
     return {endian::native == endian::little ? byteswap(location) >> 8 : location << 8,
             reinterpret_cast<uint8_t *>(&location)[3]};
 }
+/// Specify the compression scheme
+enum class CompressionScheme
+{
+    GZip = 1,    // GZip (RFC1952)
+    Zlib = 2,    // Zlib (RFC1950)
+    LZ4 = 4,     // LZ4
+    Custom = 127 // Custom compression algorithm
+};
+/// Define a function type that decompresses an input stream using a given compression scheme
+using Decompressor = move_only_function<unique_ptr<istream>(istream &, CompressionScheme)>;
 /// Read the data of a chunk from a region file
-inline NBT readChunk(istream &region, SectorInfo location)
+inline NBT readChunk(istream &region, Decompressor &func, SectorInfo location)
 {
     region.seekg(0x1000 * location.offset);
     uint32_t length;
@@ -81,23 +92,23 @@ inline NBT readChunk(istream &region, SectorInfo location)
     uint8_t compression_type = region.get();
     switch (compression_type)
     {
-    case 1: // GZip (RFC1952)
-    case 2: // Zlib (RFC1950)
-        return bin::read(zstr::istream(region));
     case 3: // Uncompressed
         return bin::read(region);
+    case 1:   // GZip
+    case 2:   // Zlib
     case 4:   // LZ4
-    case 127: // Custom compression algorithm
+    case 127: // Custom
+        return bin::read(*func(region, static_cast<CompressionScheme>(compression_type)));
     default:
         throw runtime_error("unknown compression schemes");
     }
 }
-inline NBT readChunk(istream &&region, SectorInfo location)
+inline NBT readChunk(istream &&region, Decompressor &func, SectorInfo location)
 {
-    return readChunk(region, location);
+    return readChunk(region, func, location);
 }
 /// Read a chunk from a region file
-inline Chunk readChunk(istream &region, size_t x, size_t z)
+inline Chunk readChunk(istream &region, Decompressor func, size_t x, size_t z)
 {
     region.exceptions(istream::eofbit | istream::failbit | istream::badbit);
 
@@ -115,33 +126,35 @@ inline Chunk readChunk(istream &region, size_t x, size_t z)
     region.seekg(0x1000 + 4 * offset);
     uint32_t timestamp = endianswap(getValue<uint32_t>(region));
 
-    return {timestamp, readChunk(region, location)};
+    return {timestamp, readChunk(region, func, location)};
 }
-inline Chunk readChunk(istream &&region, size_t x, size_t z)
+inline Chunk readChunk(istream &&region, Decompressor func, size_t x, size_t z)
 {
-    return readChunk(region, x, z);
+    return readChunk(region, std::move(func), x, z);
 }
 /// Read a region from a region file
-inline Region readRegion(istream &region)
+inline Region readRegion(istream &region, Decompressor func)
 {
     region.exceptions(istream::eofbit | istream::failbit | istream::badbit);
 
+    // Header
     uint32_t locations[1024], timestamps[1024];
     region.read(reinterpret_cast<char *>(&locations), sizeof(locations));
     region.read(reinterpret_cast<char *>(&timestamps), sizeof(timestamps));
 
+    // Payload
     Region ret;
     for (size_t i = 0; i < 1024; i++)
     {
         SectorInfo location = getLocation(locations[i]);
         if (location.offset >= 2 && location.count > 0)
-            ret[i] = optional(Chunk{endianswap(timestamps[i]), readChunk(region, location)});
+            ret[i] = optional(Chunk{endianswap(timestamps[i]), readChunk(region, func, location)});
     }
     return ret;
 }
-inline Region readRegion(istream &&region)
+inline Region readRegion(istream &&region, Decompressor func)
 {
-    return readRegion(region);
+    return readRegion(region, std::move(func));
 }
 } // namespace mca
 

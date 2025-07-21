@@ -165,7 +165,7 @@ bool is_nonempty_list = match(list.getType(), [&list]<typename T> {
 
 ## Usage of Region Part
 
-Just include [`lmca.hpp`](./lmca.hpp) in the root directory to get started. Note that **C++23** and **zlib** is required.
+Just include [`lmca.hpp`](./lmca.hpp) in the root directory to get started. Note that if you want to read region files that contain compressed data, you must implement your own `Decompressor` (you can find its detailed description in the following section).
 
 ### Data Structure
 
@@ -178,25 +178,81 @@ struct mca::Chunk
 };
 /// A region, which stores a group of 32×32 chunks
 struct mca::Region : std::array<std::optional<mca::Chunk>, 1024>;
+/// Specify the compression scheme
+enum class CompressionScheme
+{
+    GZip = 1,    // GZip (RFC1952)
+    Zlib = 2,    // Zlib (RFC1950)
+    LZ4 = 4,     // LZ4
+    Custom = 127 // Custom compression algorithm
+};
+/// Define a function type that decompresses an input stream using a given compression scheme
+using Decompressor = move_only_function<unique_ptr<istream>(istream &, CompressionScheme)>;
+```
+
+### Decompressor
+
+This library does not have built-in decompression functionality, so you should provide it by implementing your own decompressor. A decompressor should decompress the data in the passed `std::istream&` according to the passed `mca::CompressionScheme` and return a `unique_ptr<istream>` containing the decompressed data stream. Here are two examples using different decompression libraries:
+
+```cpp
+// Example using github.com/mateidavid/zstr
+#include <zstr.hpp>
+unique_ptr<std::istream> zstr_decompressor(std::istream &in, mca::CompressionScheme scheme)
+{
+    switch (scheme)
+    {
+    case mca::CompressionScheme::GZip:
+    case mca::CompressionScheme::Zlib:
+        return make_unique<zstr::istream>(in);
+    default:
+        throw std::runtime_error("Unknown/unimplemented compression scheme");
+    }
+}
+// Example using Boost.Iostreams
+#include <boost/iostreams/filter/gzip.hpp>
+#include <boost/iostreams/filter/zlib.hpp>
+#include <boost/iostreams/filtering_stream.hpp>
+unique_ptr<std::istream> boost_iostreams_decompressor(std::istream &in, mca::CompressionScheme scheme)
+{
+    switch (scheme)
+    {
+    case mca::CompressionScheme::GZip:
+    {
+        auto decompress_stream = make_unique<boost::iostreams::filtering_istream>();
+        decompress_stream->push(boost::iostreams::gzip_decompressor());
+        decompress_stream->push(in);
+        return decompress_stream;
+    }
+    case mca::CompressionScheme::Zlib:
+    {
+        auto decompress_stream = make_unique<boost::iostreams::filtering_istream>();
+        decompress_stream->push(boost::iostreams::zlib_decompressor());
+        decompress_stream->push(in);
+        return decompress_stream;
+    }
+    default:
+        throw std::runtime_error("Unknown/unimplemented compression scheme");
+    }
+}
 ```
 
 ### Read Chunks
 
 ```cpp
 /// Read the data of a chunk from a region file
-nbt::NBT mca::readChunk(std::istream &region, mca::SectorInfo location);
-nbt::NBT mca::readChunk(std::istream &&region, mca::SectorInfo location);
+nbt::NBT mca::readChunk(std::istream &region, mca::Decompressor &func, mca::SectorInfo location);
+nbt::NBT mca::readChunk(std::istream &&region, mca::Decompressor &func, mca::SectorInfo location);
 /// Read a chunk from a region file
-mca::Chunk mca::readChunk(std::istream &region, size_t x, size_t z);
-mca::Chunk mca::readChunk(std::istream &&region, size_t x, size_t z);
+mca::Chunk mca::readChunk(std::istream &region, mca::Decompressor func, size_t x, size_t z);
+mca::Chunk mca::readChunk(std::istream &&region, mca::Decompressor func, size_t x, size_t z);
 ```
 
 ### Read Regions
 
 ```cpp
 /// Read a region from a region file
-mca::Region mca::readRegion(std::istream &region);
-mca::Region mca::readRegion(std::istream &&region);
+mca::Region mca::readRegion(std::istream &region, mca::Decompressor func);
+mca::Region mca::readRegion(std::istream &&region, mca::Decompressor func);
 ```
 
 ### Access
