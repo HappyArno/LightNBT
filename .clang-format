@@ -28,3 +28,4 @@ IndentAccessModifiers: false
 AccessModifierOffset: -4
 EmptyLineBeforeAccessModifier: Never
 NamespaceIndentation: None
+AlignAfterOpenBracket: BlockIndent

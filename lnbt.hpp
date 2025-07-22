@@ -103,9 +103,7 @@ struct Compound : public map<string, Tag>
     const T *get_if(string name) const;
 };
 /// An ordered list of unnamed tags, all of the same type
-struct List : public variant<vector<monostate>, vector<int8_t>, vector<short>, vector<int>, vector<long long>,
-                             vector<float>, vector<double>, vector<vector<int8_t>>, vector<string>, vector<List>,
-                             vector<Compound>, vector<vector<int>>, vector<vector<long long>>>
+struct List : public variant<vector<monostate>, vector<int8_t>, vector<short>, vector<int>, vector<long long>, vector<float>, vector<double>, vector<vector<int8_t>>, vector<string>, vector<List>, vector<Compound>, vector<vector<int>>, vector<vector<long long>>>
 {
     using variant::variant;
     template <is_tag T>
@@ -163,8 +161,7 @@ struct List : public variant<vector<monostate>, vector<int8_t>, vector<short>, v
     }
 };
 /// A unnamed tag
-struct Tag : public variant<monostate, int8_t, short, int, long long, float, double, vector<int8_t>,
-                            string, List, Compound, vector<int>, vector<long long>>
+struct Tag : public variant<monostate, int8_t, short, int, long long, float, double, vector<int8_t>, string, List, Compound, vector<int>, vector<long long>>
 {
     using variant::variant;
     /// Initializer-list constructor for Compound
@@ -566,9 +563,10 @@ template <typename T>
 void io<endian>::write(ostream &out, const T &val)
 {
     write<TagType>(out, val.getType());
-    match(val.getType(), [&out, &val]<typename U> {
-        write(out, val.template get<U>());
-    });
+    visit(
+        [&out]<typename U>(const U &v) { write(out, v); },
+        val
+    );
 }
 template <endian endian>
 template <typename T>
@@ -588,9 +586,10 @@ template <typename T>
     requires same_as<T, Tag>
 void io<endian>::write(ostream &out, const T &val)
 {
-    match(val.getType(), [&out, &val]<typename U> {
-        write(out, val.template get<U>());
-    });
+    visit(
+        [&out]<typename U>(const U &v) { write(out, v); },
+        val
+    );
 }
 template <endian endian>
 void io<endian>::write(ostream &out, const NBT &val)
@@ -843,9 +842,12 @@ inline Tag readListOrArray(istream &in)
         return vector<monostate>();
     }
     Tag tag = read<Tag>(in);
-    return match(tag.getType(), [&in, &tag]<typename U> {
-        return List(readList(in, vector{tag.get<U>()}));
-    });
+    return visit(
+        [&in]<typename U>(const U &v) {
+            return List(readList(in, vector{v}));
+        },
+        tag
+    );
 }
 template <typename T>
     requires same_as<T, Tag>
@@ -1202,15 +1204,21 @@ void Writer::writeList(ostream &out, const vector<T> &vec, size_t depth) const
 }
 inline void Writer::write(ostream &out, const List &list, size_t depth) const
 {
-    match(list.getType(), [this, &out, &list, depth]<typename U> {
-        writeList(out, list.get<U>(), depth);
-    });
+    visit(
+        [this, &out, depth]<typename U>(const U &v) {
+            writeList(out, v, depth);
+        },
+        list
+    );
 }
 inline void Writer::write(ostream &out, const Tag &tag, size_t depth) const
 {
-    match(tag.getType(), [this, &out, &tag, depth]<typename U> {
-        write(out, tag.get<U>(), depth);
-    });
+    visit(
+        [this, &out, depth]<typename U>(const U &v) {
+            write(out, v, depth);
+        },
+        tag
+    );
 }
 const Writer stdWriter;
 const Writer noLineFeedWriter{.line_feed = false};

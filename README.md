@@ -146,21 +146,11 @@ template<class T> inline T nbt::Tag::get_num_as() const;
 
 #### `match`
 
-`match` function is provided to match a tag type to the corresponding C++ type through explicitly specifying template arguments of a lambda expressions with an explicit template parameter list.
+`match` function is provided to match a tag type to the corresponding C++ type through explicitly specifying template arguments of a generic function object (such as a lambda expression with an explicit template parameter list). This is mainly used to make up for the defect that `std::visit` can only match functions according to C++ types and cannot match functions according to `nbt::TagType`. In fact, in most cases `std::visit` is sufficient, unless you need to deal with raw data.
 
 ```cpp
-template<class Func> auto nbt::match(nbt::TagType type, Func &&func);
-
-// example
-Tag tag(3.14);
-match(tag.getType(), [&tag]<typename T> {
-    if constexpr (integral<T> || floating_point<T>)
-        cout << tag.get<T>() << endl;
-});
-List list = vector<int>{1, 2, 3};
-bool is_nonempty_list = match(list.getType(), [&list]<typename T> {
-    return !list.get<T>().empty();
-});
+template<class Func>
+auto nbt::match(nbt::TagType type, Func &&func);
 ```
 
 ## Usage of Region Part
