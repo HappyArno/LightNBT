@@ -24,6 +24,53 @@ int main()
 }
 ```
 
+## Integration
+
+You can effortlessly integrate this project using CMake. The following three approaches are available:
+
+### add_subdirectory()
+
+Clone the project into a subdirectory and add the following code to `CMakeLists.txt`:
+
+```cmake
+add_subdirectory(LightNBT)
+target_link_libraries(your_target_name PRIVATE LightNBT::LightNBT)
+```
+
+### find_package()
+
+Clone, build, and install the project:
+
+```bash
+git clone https://github.com/HappyArno/LightNBT
+cd LightNBT && mkdir build && cd build
+cmake ..
+cmake --build .
+sudo cmake --install .
+```
+
+Add the following code to `CMakeLists.txt`:
+
+```cmake
+find_package(LightNBT REQUIRED)
+target_link_libraries(your_target_name PRIVATE LightNBT::LightNBT)
+```
+
+### FetchContent
+
+Add the following code to `CMakeLists.txt`:
+
+```cmake
+include(FetchContent)
+FetchContent_Declare(
+    LightNBT
+    GIT_REPOSITORY https://github.com/HappyArno/LightNBT
+    # GIT_TAG <commit|tag|branch>
+)
+FetchContent_MakeAvailable(LightNBT)
+target_link_libraries(test PRIVATE LightNBT::LightNBT)
+```
+
 ## Usage of NBT Part
 
 Just include [`lnbt.hpp`](./lnbt.hpp) in the root directory to get started. Note that **C++23** is required.
